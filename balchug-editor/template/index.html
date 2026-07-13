@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StudioCanvas WYSIWYG</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Lightweight vector icon engine pack -->
+    <link rel="stylesheet" href="https://cloudflare.com">
+</head>
+<body>
+
+<!-- Top Application Control Bar -->
+<header class="app-header">
+    <div class="brand">
+        <div class="brand-icon"><i class="fa-solid fa-cubes"></i></div>
+        <div class="brand-text">
+            <h1>Balchug Editor</h1>
+            <span>v0.1 Engine</span>
+        </div>
+    </div>
+    <div class="header-actions">
+        <button class="btn btn-secondary"><i class="fa-solid fa-play"></i> Preview</button>
+        <button class="btn btn-primary"><i class="fa-solid fa-cloud-arrow-up"></i> Export</button>
+    </div>
+</header>
+
+<!-- Split View Workspace Partition -->
+<main class="workspace">
+
+    <!-- Left Screen Frame Canvas Viewport -->
+    <section class="canvas-container">
+        <div class="canvas-status">
+            <span class="status-dot"></span>
+            <span>Live Viewport: 16:9 Horizontal</span>
+        </div>
+
+        <!-- Fixed Ratio Device Simulator Frame -->
+        <div class="mobile-frame">
+            <div class="canvas-mock-content">
+                <div class="workspace-placeholder">
+                    <i class="fa-solid fa-image"></i>
+                </div>
+                <h3>Active Canvas Workspace</h3>
+                <p>Tweak structural components dynamically from the inspector panel.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Right Control Panel Drawer Layout -->
+    <aside class="sidebar">
+        <nav class="tab-navigation">
+            <button class="tab-btn active" id="tab-prop-btn">Properties</button>
+            <button class="tab-btn" id="tab-asset-btn">Assets & Layers</button>
+        </nav>
+
+        <!-- Scrollable Control Subsections Wrapper -->
+        <div class="panel-scroller">
+
+            <!-- Section: Project Metadata Configuration -->
+            <section class="panel-card">
+                <div class="panel-header">
+                    <h4><i class="fa-solid fa-gear"></i> Project Settings</h4>
+                </div>
+                <div class="panel-body">
+                    <div class="form-group">
+                        <label>
+                            Project Name
+                            <input type="text" value="Cyberpunk_Runner_Lvl1">
+                        </label>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>
+                                Target FPS
+                                <select><option>60 FPS</option><option>30 FPS</option></select>
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label>
+                                Physics Tick
+                                <input type="number" value="120">
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Layer Configuration Matrix -->
+            <section class="panel-card">
+                <div class="panel-header">
+                    <h4><i class="fa-solid fa-layer-group"></i> Layer Properties</h4>
+                </div>
+                <div class="panel-body">
+                    <div class="form-row flex-between">
+                        <label>Layer Visibility</label>
+                        <input type="checkbox" checked>
+                    </div>
+                    <div class="form-group">
+                        <label>Scroll Factor (Parallax)</label>
+                        <input type="range" min="0" max="2" step="0.1" value="0.7">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Sprite Vector Controls -->
+            <section class="panel-card">
+                <div class="panel-header">
+                    <h4><i class="fa-solid fa-sliders"></i> Sprite Properties</h4>
+                </div>
+                <div class="panel-body">
+                    <div class="form-group">
+                        <label>Coordinates Matrix</label>
+                        <div class="form-row">
+                            <input type="number" value="480" placeholder="X">
+                            <input type="number" value="320" placeholder="Y">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Scale Matrix</label>
+                        <input type="range" min="0.1" max="3" step="0.1" value="1.2">
+                    </div>
+                    <div class="form-group">
+                        <label>Opacity Value</label>
+                        <input type="range" min="0" max="100" value="90">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Asset Resources Bank -->
+            <section class="panel-card">
+                <div class="panel-header">
+                    <h4><i class="fa-solid fa-folder-open"></i> Resource Bank</h4>
+                </div>
+                <div class="panel-body">
+                    <label class="file-dropzone">
+                        <input type="file" accept="image/*" style="display:none">
+                        <i class="fa-solid fa-cloud-arrow-up"></i>
+                        <span>Upload Sprite Asset</span>
+                    </label>
+                    <div class="asset-item">
+                        <div class="asset-preview"></div>
+                        <span class="asset-name">hero_run.png</span>
+                        <button class="btn-delete"><i class="fa-solid fa-trash-can"></i></button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section: Structural Layer Node Stack Hierarchy -->
+            <section class="panel-card">
+                <div class="panel-header">
+                    <h4><i class="fa-solid fa-bars-staggered"></i> Layer Hierarchy</h4>
+                </div>
+                <div class="panel-body stack-list">
+                    <div class="stack-item active">
+                        <span><i class="fa-solid fa-grip-vertical"></i> Foreground_FX</span>
+                        <i class="fa-regular fa-eye"></i>
+                    </div>
+                    <div class="stack-item">
+                        <span><i class="fa-solid fa-grip-vertical"></i> Gameplay_Actors</span>
+                        <i class="fa-regular fa-eye"></i>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </aside>
+</main>
+</body>
+</html>
