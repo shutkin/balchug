@@ -5,19 +5,23 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{console, Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2RenderingContext, Response, AddEventListenerOptions, WheelEvent, TouchEvent};
 use balchug_common::atlas::{Atlas, AtlasItem, FontData};
+use balchug_common::scenario::Scenario;
 use balchug_common::sprite::Sprite;
 use crate::font::font_builder::build_font;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
-use crate::r#const::{create_atlas, create_font, create_font_atlas, get_letters};
-use crate::scenario::{build_scenario, Scenario};
+use crate::scenario::{scenario_letters, scenario_max_offset, scenario_text_size};
+use crate::sprite_util::{arrange_text_line, interpolate_state, scale_sprite_state};
 
 pub mod gl;
-mod r#const;
 mod inertia;
 mod scenario;
-mod text;
 mod font;
+mod sprite_util;
+
+pub trait OffsetListener {
+    fn offset_change(&mut self, offset: f32);
+}
 
 #[derive(Clone)]
 struct AppContext {
@@ -33,23 +37,25 @@ struct AppContext {
     last_frame: Rc<Cell<instant::Instant>>,
     touch_start_screen: Rc<Cell<f32>>,
     touch_start_scroll: Rc<Cell<f32>>,
+    offset_listener: Rc<RefCell<Option<Box<dyn OffsetListener>>>>,
 }
 
 impl AppContext {
-    fn new(canvas_width: f32, scenario: Scenario, atlas: Atlas, font_atlas: Atlas, font: FontData) -> Self {
+    fn new(canvas_width: f32) -> Self {
         AppContext {
             scroll: Rc::new(RefCell::new(Inertia::new(0.0))),
             images_texture_ready: Rc::new(Cell::new(false)),
             txt_texture_ready: Rc::new(Cell::new(false)),
-            atlas_items: Rc::new(RefCell::new(atlas.items)),
-            font_atlas_items: Rc::new(RefCell::new(font_atlas.items)),
-            scenario: Rc::new(RefCell::new(scenario)),
-            font: Rc::new(RefCell::new(font)),
+            atlas_items: Rc::new(RefCell::new(HashMap::default())),
+            font_atlas_items: Rc::new(RefCell::new(HashMap::default())),
+            scenario: Rc::new(RefCell::new(Scenario::default())),
+            font: Rc::new(RefCell::new(FontData::default())),
             font_bytes: Rc::new(RefCell::new(Vec::new())),
             canvas_width: Rc::new(Cell::new(canvas_width)),
             last_frame: Rc::new(Cell::new(instant::Instant::now())),
             touch_start_screen: Rc::new(Cell::new(0.0)),
             touch_start_scroll: Rc::new(Cell::new(0.0)),
+            offset_listener: Rc::new(RefCell::new(None)),
         }
     }
 }
@@ -74,21 +80,38 @@ impl BalchugEngine {
             self.canvas.set_height(height);
             self.context.canvas_width.set(width as f32);
             self.renderer.set_sizes(width as f32, height as f32);
-
-            let max_scroll = self.context.scenario.borrow().max_offset() * width as f32;
-            self.context.scroll.borrow_mut().set_limit_up(max_scroll);
-
-            rebuild_font(&self.context, &self.renderer);
+            self.update();
         }
+    }
+
+    pub fn set_offset_listener(&self, listener: Box<dyn OffsetListener>) {
+        self.context.offset_listener.borrow_mut().replace(listener);
+    }
+
+    pub fn set_atlas(&self, atlas: Atlas) {
+        self.context.atlas_items.replace(atlas.items);
+    }
+
+    pub fn set_scenario(&self, scenario: Scenario) {
+        self.context.scenario.replace(scenario);
+        self.update();
+    }
+
+    fn update(&self) {
+        let width = self.context.canvas_width.get();
+        let max_scroll = scenario_max_offset(&self.context.scenario.borrow()) * width;
+        self.context.scroll.borrow_mut().set_limit_up(max_scroll);
+        rebuild_font(&self.context, &self.renderer);
     }
 }
 
 fn rebuild_font(ctx: &AppContext, renderer: &GlRenderer) {
     let bytes = ctx.font_bytes.borrow();
-    if !bytes.is_empty() {
-        let font_size = ctx.scenario.borrow().text_size(ctx.canvas_width.get());
+    let letters = scenario_letters(&ctx.scenario.borrow());
+    if !bytes.is_empty() && !letters.is_empty() {
+        let font_size = scenario_text_size(&ctx.scenario.borrow(), ctx.canvas_width.get());
         console::log_1(&format!("Font size: {font_size}").into());
-        if let Some(res) = build_font(&get_letters(), &bytes, font_size) {
+        if let Some(res) = build_font(&letters, &bytes, font_size) {
             renderer.set_font_texture(res.atlas.width, res.atlas.height, &res.data);
             ctx.font.replace(res.font_data);
             ctx.font_atlas_items.replace(res.atlas.items);
@@ -102,64 +125,62 @@ fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     let elapsed = now.duration_since(ctx.last_frame.get()).as_secs_f32();
     ctx.last_frame.set(now);
 
-    if !ctx.images_texture_ready.get() || !ctx.txt_texture_ready.get() {
-        return (vec![], vec![]);
-    }
-
     let width = ctx.canvas_width.get();
-    let scaled_offset = ctx.scroll.borrow_mut().live(elapsed) / width;
+    let (updated, offset) = ctx.scroll.borrow_mut().live(elapsed);
+    let scaled_offset = offset / width;
+    if updated {
+        ctx.offset_listener.borrow_mut().as_mut().map(|listener| listener.offset_change(scaled_offset));
+    } else {
+        return (Vec::new(), Vec::new());
+    }
     let scenario = ctx.scenario.borrow();
     let (mut sprites, mut text_sprites) = (Vec::new(), Vec::new());
 
     for image_animation in &scenario.images {
-        if let Some(cur_state) = image_animation.animation.interpolate_state(scaled_offset) && cur_state.color[3] > 0.01 {
+        if let Some(cur_state) = interpolate_state(&image_animation.animation, scaled_offset) && cur_state.color[3] > 0.01 {
             sprites.push(Sprite {
-                state: cur_state.scale(width),
+                state: scale_sprite_state(&cur_state, width),
                 atlas_item: *ctx.atlas_items.borrow().get(&image_animation.atlas_item_id).unwrap(),
             });
         }
     }
     for text_animation in &scenario.text_lines {
-        if let Some(cur_state) = text_animation.animation.interpolate_state(scaled_offset) && cur_state.color[3] > 0.01 {
-            for glyph_sprite in text_animation.arrange(&cur_state, &ctx.font.borrow(), &ctx.font_atlas_items.borrow()) {
+        if let Some(cur_state) = interpolate_state(&text_animation.animation, scaled_offset) && cur_state.color[3] > 0.01 {
+            for glyph_sprite in arrange_text_line(&text_animation, &cur_state, &ctx.font.borrow(), &ctx.font_atlas_items.borrow()) {
                 let glyph_sprite = Sprite {
-                    state: glyph_sprite.state.scale(width),
+                    state: scale_sprite_state(&glyph_sprite.state, width),
                     atlas_item: glyph_sprite.atlas_item,
                 };
                 text_sprites.push(glyph_sprite);
             }
         }
     }
-    /*console::log_1(&format!(
-        "text sprites: {}",
-        text_sprites.iter().map(|s| format!("{}x{} -> {}x{}", s.state.width, s.state.height, s.atlas_item.origin_width, s.atlas_item.origin_height)).collect::<Vec<_>>().join(", ")
-    ).into());*/
-    (sprites, text_sprites)
+
+    if !sprites.is_empty() && !ctx.images_texture_ready.get() || !text_sprites.is_empty() && !ctx.txt_texture_ready.get() {
+        (vec![], vec![])
+    } else {
+        (sprites, text_sprites)
+    }
 }
 
 pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &str) -> BalchugEngine {
-    let pixel_ratio = window.device_pixel_ratio();
+    let pixel_ratio = window.device_pixel_ratio().max(2.0);
 
     let gl = canvas.get_context("webgl2").unwrap().unwrap().dyn_into::<WebGl2RenderingContext>().unwrap();
     let renderer = GlRenderer::init(gl).unwrap();
     let (width, height) = (canvas.width(), canvas.height());
-    //renderer.set_sizes(width as f32, height as f32);
+    renderer.set_sizes(width as f32, height as f32);
 
-    let atlas_img = HtmlImageElement::new().unwrap();
-    atlas_img.set_src(&format!("{assets_folder}/atlas.webp"));
-
-    let atlas = create_atlas();
-    let font_atlas = create_font_atlas();
-    let font = create_font();
-    let scenario = build_scenario(&atlas.items, &vec![2, 1, 5, 7, 10, 6, 3, 8, 4, 9]);
-    let ctx = AppContext::new(width as f32, scenario, atlas, font_atlas, font);
+    let ctx = AppContext::new(width as f32);
 
     let render = {
         let ctx = ctx.clone();
         let renderer = renderer.clone();
         move || {
             let (sprites, text_sprites) = animate_scene(&ctx);
-            renderer.render(&sprites, &text_sprites);
+            if !sprites.is_empty() || !text_sprites.is_empty() {
+                renderer.render(&sprites, &text_sprites);
+            }
         }
     };
 
@@ -185,6 +206,8 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
     let _ = window.fetch_with_request(&req).then(&on_response);
     on_response.forget();
 
+    let atlas_img = HtmlImageElement::new().unwrap();
+    atlas_img.set_src(&format!("{assets_folder}/atlas.webp"));
     let on_load = {
         let renderer = renderer.clone();
         let img = atlas_img.clone();

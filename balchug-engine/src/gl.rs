@@ -152,48 +152,52 @@ impl GlRenderer {
         self.gl.clear_color(1.0, 1.0, 1.0, 1.0);
         self.gl.clear(GL::COLOR_BUFFER_BIT);
 
-        self.gl.bind_texture(GL::TEXTURE_2D, Some(&self.texture));
-        self.gl.use_program(Some(&self.program));
-        let atlas_pos_loc = self.gl.get_uniform_location(&self.program, "u_atlasSize");
-        let (width, height) = self.texture_size.get();
-        self.gl.uniform2f(atlas_pos_loc.as_ref(), width as f32, height as f32);
-        for sprite in sprites {
-            let sprite_pos_loc = self.gl.get_uniform_location(&self.program, "u_spritePos");
-            let sprite_size_loc = self.gl.get_uniform_location(&self.program, "u_spriteSize");
-            self.gl.uniform2f(sprite_pos_loc.as_ref(), sprite.state.x, sprite.state.y);
-            self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.width, sprite.state.height);
+        if !sprites.is_empty() {
+            self.gl.bind_texture(GL::TEXTURE_2D, Some(&self.texture));
+            self.gl.use_program(Some(&self.program));
+            let atlas_pos_loc = self.gl.get_uniform_location(&self.program, "u_atlasSize");
+            let (width, height) = self.texture_size.get();
+            self.gl.uniform2f(atlas_pos_loc.as_ref(), width as f32, height as f32);
+            for sprite in sprites {
+                let sprite_pos_loc = self.gl.get_uniform_location(&self.program, "u_spritePos");
+                let sprite_size_loc = self.gl.get_uniform_location(&self.program, "u_spriteSize");
+                self.gl.uniform2f(sprite_pos_loc.as_ref(), sprite.state.x, sprite.state.y);
+                self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.width, sprite.state.height);
 
-            let sprite_alpha_loc = self.gl.get_uniform_location(&self.program, "u_spriteAlpha");
-            self.gl.uniform1f(sprite_alpha_loc.as_ref(), sprite.state.color[3]);
+                let sprite_alpha_loc = self.gl.get_uniform_location(&self.program, "u_spriteAlpha");
+                self.gl.uniform1f(sprite_alpha_loc.as_ref(), sprite.state.color[3]);
 
-            let tex_pos_loc = self.gl.get_uniform_location(&self.program, "u_texPos");
-            let tex_size_loc = self.gl.get_uniform_location(&self.program, "u_texSize");
-            self.gl.uniform2f(tex_pos_loc.as_ref(), sprite.atlas_item.x as f32, sprite.atlas_item.y as f32);
-            self.gl.uniform2f(tex_size_loc.as_ref(), sprite.atlas_item.width as f32, sprite.atlas_item.height as f32);
+                let tex_pos_loc = self.gl.get_uniform_location(&self.program, "u_texPos");
+                let tex_size_loc = self.gl.get_uniform_location(&self.program, "u_texSize");
+                self.gl.uniform2f(tex_pos_loc.as_ref(), sprite.atlas_item.x as f32, sprite.atlas_item.y as f32);
+                self.gl.uniform2f(tex_size_loc.as_ref(), sprite.atlas_item.width as f32, sprite.atlas_item.height as f32);
 
-            self.gl.draw_arrays(GL::TRIANGLE_FAN, 0, 4);
+                self.gl.draw_arrays(GL::TRIANGLE_FAN, 0, 4);
+            }
         }
 
-        self.gl.bind_texture(GL::TEXTURE_2D, Some(&self.font_texture));
-        self.gl.use_program(Some(&self.txt_program));
-        let atlas_pos_loc = self.gl.get_uniform_location(&self.txt_program, "u_atlasSize");
-        let (width, height) = self.font_size.get();
-        self.gl.uniform2f(atlas_pos_loc.as_ref(), width as f32, height as f32);
-        for sprite in txt_sprites {
-            let sprite_pos_loc = self.gl.get_uniform_location(&self.txt_program, "u_spritePos");
-            let sprite_size_loc = self.gl.get_uniform_location(&self.txt_program, "u_spriteSize");
-            self.gl.uniform2f(sprite_pos_loc.as_ref(), sprite.state.x, sprite.state.y);
-            self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.width, sprite.state.height);
+        if !txt_sprites.is_empty() {
+            self.gl.bind_texture(GL::TEXTURE_2D, Some(&self.font_texture));
+            self.gl.use_program(Some(&self.txt_program));
+            let atlas_pos_loc = self.gl.get_uniform_location(&self.txt_program, "u_atlasSize");
+            let (width, height) = self.font_size.get();
+            self.gl.uniform2f(atlas_pos_loc.as_ref(), width as f32, height as f32);
+            for sprite in txt_sprites {
+                let sprite_pos_loc = self.gl.get_uniform_location(&self.txt_program, "u_spritePos");
+                let sprite_size_loc = self.gl.get_uniform_location(&self.txt_program, "u_spriteSize");
+                self.gl.uniform2f(sprite_pos_loc.as_ref(), sprite.state.x, sprite.state.y);
+                self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.width, sprite.state.height);
 
-            let sprite_alpha_loc = self.gl.get_uniform_location(&self.txt_program, "u_spriteColor");
-            self.gl.uniform4f(sprite_alpha_loc.as_ref(), sprite.state.color[0], sprite.state.color[1], sprite.state.color[2], sprite.state.color[3]);
+                let sprite_alpha_loc = self.gl.get_uniform_location(&self.txt_program, "u_spriteColor");
+                self.gl.uniform4f(sprite_alpha_loc.as_ref(), sprite.state.color[0], sprite.state.color[1], sprite.state.color[2], sprite.state.color[3]);
 
-            let tex_pos_loc = self.gl.get_uniform_location(&self.txt_program, "u_texPos");
-            let tex_size_loc = self.gl.get_uniform_location(&self.txt_program, "u_texSize");
-            self.gl.uniform2f(tex_pos_loc.as_ref(), sprite.atlas_item.x as f32, sprite.atlas_item.y as f32);
-            self.gl.uniform2f(tex_size_loc.as_ref(), sprite.atlas_item.width as f32, sprite.atlas_item.height as f32);
+                let tex_pos_loc = self.gl.get_uniform_location(&self.txt_program, "u_texPos");
+                let tex_size_loc = self.gl.get_uniform_location(&self.txt_program, "u_texSize");
+                self.gl.uniform2f(tex_pos_loc.as_ref(), sprite.atlas_item.x as f32, sprite.atlas_item.y as f32);
+                self.gl.uniform2f(tex_size_loc.as_ref(), sprite.atlas_item.width as f32, sprite.atlas_item.height as f32);
 
-            self.gl.draw_arrays(GL::TRIANGLE_FAN, 0, 4);
+                self.gl.draw_arrays(GL::TRIANGLE_FAN, 0, 4);
+            }
         }
     }
 }

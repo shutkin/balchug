@@ -40,7 +40,8 @@ impl Inertia {
         self.target = None;
     }
 
-    pub fn live(&mut self, elapsed: f32) -> f32 {
+    pub fn live(&mut self, elapsed: f32) -> (bool, f32) {
+        let prev_value = self.value;
         let mut target_sign_before = false;
         if let Some(target) = self.target {
             target_sign_before = target.value > self.value;
@@ -61,6 +62,6 @@ impl Inertia {
         }
         let friction_factor = if self.target.is_some() { 24.0 } else { 1.2 };
         self.speed /= 1.0 + elapsed * friction_factor;
-        self.value
+        ((self.value - prev_value).abs() > 0.025, self.value)
     }
 }

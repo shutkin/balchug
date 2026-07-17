@@ -2,26 +2,60 @@ use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
-use balchug_engine::{start_engine, BalchugEngine};
+use balchug_common::atlas::Atlas;
+use balchug_common::scenario::Scenario;
+use balchug_engine::{start_engine, BalchugEngine, OffsetListener};
+use crate::components::timeline::TimeLine;
 
 static ASSETS_DIR: Asset = asset!("/assets");
 
 #[component]
-pub fn Workspace() -> Element {
+pub fn Workspace(atlas: Signal<Atlas>, scenario: Signal<Scenario>, preview_offset: Signal<f32>) -> Element {
     rsx! {
         main {
             id: "workspace_main",
             class: "workspace",
-            BalchugPreview {}
-            Sidebar {}
+            BalchugPreview {
+                atlas,
+                scenario,
+                preview_offset,
+            }
+            Sidebar {
+                scenario,
+                preview_offset,
+            }
         }
     }
 }
 
+#[derive(Clone)]
+struct PreviewOffsetListener {
+    signal: Signal<f32>,
+}
+
+impl OffsetListener for PreviewOffsetListener {
+    fn offset_change(&mut self, offset: f32) {
+        self.signal.set(offset);
+    }
+}
+
 #[component]
-pub fn BalchugPreview() -> Element {
+pub fn BalchugPreview(atlas: Signal<Atlas>, scenario: Signal<Scenario>, preview_offset: Signal<f32>) -> Element {
+    let listener = PreviewOffsetListener { signal: preview_offset };
     let mut engine: Signal<Option<BalchugEngine>> = use_signal(|| None);
-    
+    use_effect(move || {
+        let atlas = atlas.read().clone();
+        if let Some(engine) = engine.read().as_ref() {
+            engine.set_atlas(atlas);
+        }
+    });
+    use_effect(move || {
+        let scenario = scenario.read().clone();
+        if let Some(engine) = engine.read().as_ref() {
+            engine.set_scenario(scenario);
+        }
+    });
+
     rsx! {
         section {
             id: "balchug_preview_section",
@@ -49,7 +83,9 @@ pub fn BalchugPreview() -> Element {
                         let window = window().unwrap();
                         let raw_element = mounted_data.data.as_web_event();
                         if let Ok(canvas) = raw_element.dyn_into::<web_sys::HtmlCanvasElement>() {
-                            engine.set(Some(start_engine(window, canvas, &ASSETS_DIR.to_string())));
+                            let balchug_engine = start_engine(window, canvas, &ASSETS_DIR.to_string());
+                            balchug_engine.set_offset_listener(Box::new(listener.clone()));
+                            engine.set(Some(balchug_engine));
                         }
                     },
                 }
@@ -59,11 +95,59 @@ pub fn BalchugPreview() -> Element {
 }
 
 #[component]
-pub fn Sidebar() -> Element {
+pub fn Sidebar(scenario: Signal<Scenario>, preview_offset: Signal<f32>) -> Element {
     rsx! {
         aside {
             id: "sidebar",
             class: "sidebar",
+            nav {
+                id: "sidebar_tabs",
+                class: "tab-navigation",
+                button {
+                    id: "sidebar_btn_timeline",
+                    class: "tab-btn active",
+                    "Time Line"
+                }
+                button {
+                    id: "sidebar_btn_props",
+                    class: "tab-btn",
+                    "Properties"
+                }
+            }
+            div {
+                id: "sidebar_container",
+                class: "panel-box",
+                section {
+                    id: "state_properties_container",
+                    class: "panel-card",
+                    div {
+                        id: "state_properties_header",
+                        class: "panel-header",
+                        h4 {
+                            "State Properties"
+                        }
+                    }
+                    div {
+                        id: "state_properties_body",
+                        class: "panel-body",
+                        div {
+                            id: "state_offset",
+                            class: "form-group",
+                            label {
+                                "Offset",
+                                input {
+                                    r#type: "number",
+                                    value: "10.5",
+                                }
+                            }
+                        }
+                    }
+                }
+                TimeLine {
+                    scenario,
+                    preview_offset,
+                }
+            }
         }
     }
 }

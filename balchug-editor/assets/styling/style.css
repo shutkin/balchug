@@ -61,7 +61,7 @@ body {
 }
 
 .sidebar {
-    width: 480px;
+    width: 520px;
     background-color: var(--bg-dark);
     border-left: 1px solid var(--border-color);
     display: flex;
@@ -69,10 +69,12 @@ body {
     height: 100%;
 }
 
-.panel-scroller {
+.panel-box {
     flex: 1;
-    overflow-y: auto;
+    overflow: hidden;
     padding: 16px;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Typography & Branding Objects */
@@ -237,6 +239,12 @@ body {
 .tab-btn.active {
     color: var(--accent-purple);
     border-bottom-color: var(--accent-purple);
+}
+
+.timeline-body {
+    flex: 1;
+    overflow-y: hidden;
+    overflow-x: auto;
 }
 
 /* Inspector Layout Controls Form Blocks */
@@ -410,13 +418,13 @@ input[type="range"] {
 }
 
 /* Custom Scrollbar Polish */
-.panel-scroller::-webkit-scrollbar {
+.timeline-body::-webkit-scrollbar {
     width: 4px;
 }
-.panel-scroller::-webkit-scrollbar-track {
+.timeline-body::-webkit-scrollbar-track {
     background: var(--bg-dark);
 }
-.panel-scroller::-webkit-scrollbar-thumb {
+.timeline-body::-webkit-scrollbar-thumb {
     background: var(--border-color);
     border-radius: 2px;
 }

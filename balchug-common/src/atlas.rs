@@ -11,6 +11,7 @@ pub struct AtlasItem {
     pub origin_height: u32,
 }
 
+#[derive(Clone, Default)]
 pub struct Atlas {
     pub width: u32,
     pub height: u32,
@@ -24,6 +25,7 @@ pub struct FontGlyph {
     pub offset_y: f32,
 }
 
+#[derive(Default)]
 pub struct FontData {
     pub ascend: f32,
     pub height: f32,
