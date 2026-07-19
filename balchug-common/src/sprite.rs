@@ -6,13 +6,12 @@ pub struct Sprite {
     pub atlas_item: AtlasItem,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Default)]
 pub struct SpriteState {
     pub offset: f32,
     pub x: f32,
     pub y: f32,
     pub width: f32,
-    pub height: f32,
     pub color: [f32; 4],
 }
 

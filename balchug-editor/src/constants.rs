@@ -31,7 +31,6 @@ pub fn build_scenario(items: &HashMap<usize, AtlasItem>, pictures: &[usize]) -> 
                 x: 0.0,
                 y: offset + 0.25,
                 width: 1.0,
-                height: item_height,
                 color: [0.0, 0.0, 0.0, 1.0],
             });
             if sprite_id > 0 {
@@ -40,7 +39,6 @@ pub fn build_scenario(items: &HashMap<usize, AtlasItem>, pictures: &[usize]) -> 
                     x: 0.0,
                     y: item_height + 0.26,
                     width: 1.0,
-                    height: item_height,
                     color: [0.0, 0.0, 0.0, 1.0],
                 });
             }
@@ -49,7 +47,6 @@ pub fn build_scenario(items: &HashMap<usize, AtlasItem>, pictures: &[usize]) -> 
                 x: 0.0,
                 y: if item_height < 1.0 {0.0} else {-item_height * 0.5} + 0.25,
                 width: 1.0,
-                height: item_height,
                 color: [0.0, 0.0, 0.0, 1.0],
             });
             states.push(SpriteState {
@@ -57,7 +54,6 @@ pub fn build_scenario(items: &HashMap<usize, AtlasItem>, pictures: &[usize]) -> 
                 x: -0.25,
                 y: -item_height * 1.5,
                 width: 1.5,
-                height: item_height * 1.5,
                 color: [0.0, 0.0, 0.0, 0.25],
             });
             scenario.images.push(SpriteAnimation {
@@ -76,7 +72,6 @@ pub fn build_scenario(items: &HashMap<usize, AtlasItem>, pictures: &[usize]) -> 
         x: 0.25,
         y: 0.015,
         width: 1.0,
-        height: 1.0,
         color: [0.0, 0.0, 0.0, 1.0],
     });
     states.push(SpriteState {
@@ -84,15 +79,13 @@ pub fn build_scenario(items: &HashMap<usize, AtlasItem>, pictures: &[usize]) -> 
         x: 0.25,
         y: 0.015,
         width: 1.0,
-        height: 1.0,
         color: [0.0, 0.0, 0.0, 1.0],
     });
     states.push(SpriteState {
         offset: 0.125,
         x: 0.0,
         y: 0.01,
-        width: 1.0,
-        height: 1.5,
+        width: 1.5,
         color: [0.3, 0.1, 0.7, 0.0],
     });
     scenario.text_lines.push(TextLine {

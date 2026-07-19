@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{console, Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2RenderingContext, Response, AddEventListenerOptions, WheelEvent, TouchEvent};
+use web_sys::{console, Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2RenderingContext, Response, AddEventListenerOptions, WheelEvent, TouchEvent, MouseEvent};
 use balchug_common::atlas::{Atlas, AtlasItem, FontData};
 use balchug_common::scenario::Scenario;
 use balchug_common::sprite::Sprite;
@@ -25,6 +25,7 @@ pub trait OffsetListener {
 
 #[derive(Clone)]
 struct AppContext {
+    force_rerender: Rc<Cell<bool>>,
     scroll: Rc<RefCell<Inertia>>,
     images_texture_ready: Rc<Cell<bool>>,
     txt_texture_ready: Rc<Cell<bool>>,
@@ -43,6 +44,7 @@ struct AppContext {
 impl AppContext {
     fn new(canvas_width: f32) -> Self {
         AppContext {
+            force_rerender: Rc::new(Cell::new(false)),
             scroll: Rc::new(RefCell::new(Inertia::new(0.0))),
             images_texture_ready: Rc::new(Cell::new(false)),
             txt_texture_ready: Rc::new(Cell::new(false)),
@@ -102,6 +104,7 @@ impl BalchugEngine {
         let max_scroll = scenario_max_offset(&self.context.scenario.borrow()) * width;
         self.context.scroll.borrow_mut().set_limit_up(max_scroll);
         rebuild_font(&self.context, &self.renderer);
+        self.context.force_rerender.set(true);
     }
 }
 
@@ -128,10 +131,12 @@ fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     let width = ctx.canvas_width.get();
     let (updated, offset) = ctx.scroll.borrow_mut().live(elapsed);
     let scaled_offset = offset / width;
-    if updated {
-        ctx.offset_listener.borrow_mut().as_mut().map(|listener| listener.offset_change(scaled_offset));
-    } else {
+    if !updated && !ctx.force_rerender.get() {
         return (Vec::new(), Vec::new());
+    }
+    ctx.force_rerender.set(false);
+    if let Some(listener) = ctx.offset_listener.borrow_mut().as_mut() {
+        listener.offset_change(scaled_offset)
     }
     let scenario = ctx.scenario.borrow();
     let (mut sprites, mut text_sprites) = (Vec::new(), Vec::new());
@@ -225,8 +230,10 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
     let on_wheel = {
         let scroll = ctx.scroll.clone();
         Closure::wrap(Box::new(move |e: WheelEvent| {
-            let cur_scroll = scroll.borrow().get_value();
-            scroll.borrow_mut().set_target(cur_scroll + (e.delta_y() * pixel_ratio) as f32, false);
+            if !scroll.borrow().has_permanent_target() {
+                let cur_scroll = scroll.borrow().get_value();
+                scroll.borrow_mut().set_target(cur_scroll + (e.delta_y() * pixel_ratio) as f32, false);
+            }
             e.prevent_default();
         }) as Box<dyn FnMut(WheelEvent)>)
     };
@@ -256,13 +263,32 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
     ).unwrap();
     on_touch_start.forget();
 
+    let on_mouse_down = {
+        let touch_start_screen = ctx.touch_start_screen.clone();
+        let touch_start_scroll = ctx.touch_start_scroll.clone();
+        let scroll = ctx.scroll.clone();
+        Closure::wrap(Box::new(move |e: MouseEvent| {
+            touch_start_screen.set(e.client_y() as f32);
+            let cur_scroll_value = scroll.borrow().get_value();
+            touch_start_scroll.set(cur_scroll_value);
+            scroll.borrow_mut().set_target(cur_scroll_value, true);
+            e.prevent_default();
+        }) as Box<dyn FnMut(MouseEvent)>)
+    };
+    canvas.add_event_listener_with_callback_and_add_event_listener_options(
+        "mousedown",
+        on_mouse_down.as_ref().unchecked_ref(),
+        &options
+    ).unwrap();
+    on_mouse_down.forget();
+
     let on_touch_move = {
         let touch_start_screen = ctx.touch_start_screen.clone();
         let touch_start_scroll = ctx.touch_start_scroll.clone();
         let scroll = ctx.scroll.clone();
         Closure::wrap(Box::new(move |e: TouchEvent| {
             if let Some(touch) = e.touches().item(0) {
-                let delta = touch.page_y() as f32 - touch_start_screen.get();
+                let delta = (touch.page_y() as f32 - touch_start_screen.get()) * pixel_ratio as f32;
                 scroll.borrow_mut().set_target(touch_start_scroll.get() - delta, true);
             }
             e.prevent_default();
@@ -274,6 +300,25 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         &options
     ).unwrap();
     on_touch_move.forget();
+
+    let on_mouse_move = {
+        let touch_start_screen = ctx.touch_start_screen.clone();
+        let touch_start_scroll = ctx.touch_start_scroll.clone();
+        let scroll = ctx.scroll.clone();
+        Closure::wrap(Box::new(move |e: MouseEvent| {
+            if scroll.borrow().has_permanent_target() {
+                let delta = (e.client_y() as f32 - touch_start_screen.get()) * pixel_ratio as f32;
+                scroll.borrow_mut().set_target(touch_start_scroll.get() - delta, true);
+                e.prevent_default();
+            }
+        }) as Box<dyn FnMut(MouseEvent)>)
+    };
+    canvas.add_event_listener_with_callback_and_add_event_listener_options(
+        "mousemove",
+        on_mouse_move.as_ref().unchecked_ref(),
+        &options
+    ).unwrap();
+    on_mouse_move.forget();
 
     let on_touch_end = {
         let scroll = ctx.scroll.clone();
@@ -288,6 +333,20 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         &options
     ).unwrap();
     on_touch_end.forget();
+
+    let on_mouse_up = {
+        let scroll = ctx.scroll.clone();
+        Closure::wrap(Box::new(move |e: MouseEvent| {
+            scroll.borrow_mut().clear_target();
+            e.prevent_default();
+        }) as Box<dyn FnMut(MouseEvent)>)
+    };
+    window.add_event_listener_with_callback_and_add_event_listener_options(
+        "mouseup",
+        on_mouse_up.as_ref().unchecked_ref(),
+        &options
+    ).unwrap();
+    on_mouse_up.forget();
 
     let on_frame: Rc<RefCell<Closure<dyn FnMut()>>> = Rc::new(RefCell::new(Closure::wrap(Box::new(move || {}))));
     let on_frame_clone = on_frame.clone();

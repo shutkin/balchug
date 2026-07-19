@@ -40,6 +40,14 @@ impl Inertia {
         self.target = None;
     }
 
+    pub fn has_permanent_target(&self) -> bool {
+        if let Some(target) = self.target {
+            target.is_permanent
+        } else {
+            false
+        }
+    }
+
     pub fn live(&mut self, elapsed: f32) -> (bool, f32) {
         let prev_value = self.value;
         let mut target_sign_before = false;

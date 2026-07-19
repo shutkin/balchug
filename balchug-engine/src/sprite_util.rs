@@ -14,7 +14,6 @@ fn interpolate_sprite_state(s0: &SpriteState, s1: &SpriteState, s2: &SpriteState
         x: spline(s0.offset, s0.x, s1.offset, s1.x, s2.offset, s2.x, offset),
         y: spline(s0.offset, s0.y, s1.offset, s1.y, s2.offset, s2.y, offset),
         width: spline(s0.offset, s0.width, s1.offset, s1.width, s2.offset, s2.width, offset),
-        height: spline(s0.offset, s0.height, s1.offset, s1.height, s2.offset, s2.height, offset),
         color: [
             spline(s0.offset, s0.color[0], s1.offset, s1.color[0], s2.offset, s2.color[0], offset),
             spline(s0.offset, s0.color[1], s1.offset, s1.color[1], s2.offset, s2.color[1], offset),
@@ -30,7 +29,6 @@ pub fn scale_sprite_state(state: &SpriteState, scale: f32) -> SpriteState {
         x: scale * state.x,
         y: scale * state.y,
         width: scale * state.width,
-        height: scale * state.height,
         color: state.color,
     }
 }
@@ -58,7 +56,7 @@ fn interpolate_states(states: &AnimationStates, state_index: usize, offset: f32)
 
 pub fn arrange_text_line(line: &TextLine, cur_state: &SpriteState, font: &FontData, atlas_items: &HashMap<usize, AtlasItem>) -> Vec<Sprite> {
     let mut result = Vec::new();
-    let scale = cur_state.height * line.relative_height / font.height;
+    let scale = cur_state.width * line.relative_height / font.height;
     let (mut cx, cy) = (cur_state.x, cur_state.y + font.ascend * scale);
     for c in line.text.chars() {
         if c.is_control() {
@@ -75,7 +73,6 @@ pub fn arrange_text_line(line: &TextLine, cur_state: &SpriteState, font: &FontDa
                 x: cx + glyph.offset_x * scale,
                 y: cy + glyph.offset_y * scale,
                 width: item.origin_width as f32 * scale,
-                height: item.origin_height as f32 * scale,
             };
             result.push(Sprite {
                 atlas_item: *item,

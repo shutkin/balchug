@@ -1,18 +1,12 @@
-// The dioxus prelude contains a ton of common items used in dioxus apps. It's a good idea to import wherever you
-// need dioxus
 use dioxus::prelude::*;
 
 use crate::components::workspace::Workspace;
 use crate::constants::{build_atlas, build_scenario};
 
-/// Define a components module that contains all shared components for our app.
 mod components;
 mod constants;
 
-// We can import assets in dioxus with the `asset!` macro. This macro takes a path to an asset relative to the crate root.
-// The macro returns an `Asset` type that will display as the path to the asset in the browser or a local path in desktop bundles.
 const FAVICON: Asset = asset!("/assets/favicon.ico");
-// The asset macro also minifies some assets like CSS and JS to make bundled smaller
 const MAIN_CSS: Asset = asset!("/assets/styling/style.css");
 
 fn main() {
@@ -26,7 +20,7 @@ fn main() {
 #[component]
 fn App() -> Element {
     let atlas = build_atlas();
-    let scenario = build_scenario(&atlas.items, &vec![2, 1, 5, 7, 10, 6, 3, 8, 4, 9]);
+    let scenario = build_scenario(&atlas.items, &[2, 1, 5, 7, 10, 6, 3, 8, 4, 9]);
 
     let atlas_signal = Signal::new(atlas);
     let scenario_signal = Signal::new(scenario);

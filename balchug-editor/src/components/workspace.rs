@@ -5,6 +5,7 @@ use web_sys::window;
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
 use balchug_engine::{start_engine, BalchugEngine, OffsetListener};
+use crate::components::state_props::StateProps;
 use crate::components::timeline::TimeLine;
 
 static ASSETS_DIR: Asset = asset!("/assets");
@@ -96,6 +97,8 @@ pub fn BalchugPreview(atlas: Signal<Atlas>, scenario: Signal<Scenario>, preview_
 
 #[component]
 pub fn Sidebar(scenario: Signal<Scenario>, preview_offset: Signal<f32>) -> Element {
+    let cur_point = use_signal(|| None);
+    
     rsx! {
         aside {
             id: "sidebar",
@@ -117,35 +120,14 @@ pub fn Sidebar(scenario: Signal<Scenario>, preview_offset: Signal<f32>) -> Eleme
             div {
                 id: "sidebar_container",
                 class: "panel-box",
-                section {
-                    id: "state_properties_container",
-                    class: "panel-card",
-                    div {
-                        id: "state_properties_header",
-                        class: "panel-header",
-                        h4 {
-                            "State Properties"
-                        }
-                    }
-                    div {
-                        id: "state_properties_body",
-                        class: "panel-body",
-                        div {
-                            id: "state_offset",
-                            class: "form-group",
-                            label {
-                                "Offset",
-                                input {
-                                    r#type: "number",
-                                    value: "10.5",
-                                }
-                            }
-                        }
-                    }
+                StateProps {
+                    scenario,
+                    cur_point,
                 }
                 TimeLine {
                     scenario,
                     preview_offset,
+                    cur_point,
                 }
             }
         }
