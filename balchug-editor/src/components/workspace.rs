@@ -3,27 +3,56 @@ use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
 use balchug_common::atlas::Atlas;
+use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
 use balchug_engine::{start_engine, BalchugEngine, OffsetListener};
+use crate::components::overlay::PreviewOverlay;
 use crate::components::state_props::StateProps;
-use crate::components::timeline::TimeLine;
+use crate::components::timeline::{TimeLine, TimeLinePoint};
 
 static ASSETS_DIR: Asset = asset!("/assets");
 
 #[component]
-pub fn Workspace(atlas: Signal<Atlas>, scenario: Signal<Scenario>, preview_offset: Signal<f32>) -> Element {
+pub fn Workspace(atlas: Signal<Atlas>, scenario: Signal<Scenario>, engine: Signal<Option<BalchugEngine>>) -> Element {
+    let preview_offset = Signal::new(0_f32);
+    let cur_point: Signal<Option<TimeLinePoint>> = use_signal(|| None);
+    let mut edit_rect = use_signal(move || None);
+
+    use_effect(move || {
+        if let Some(engine) = engine.read().as_ref() {
+            if let Some(cur_point) = cur_point.read().as_ref()  {
+                engine.set_interactive(false);
+                engine.set_offset_to_image_state(cur_point.object_index, cur_point.state_index);
+            } else {
+                engine.set_interactive(true);
+            }
+        }
+    });
+
+    use_effect(move || {
+        if let Some(engine) = engine.read().as_ref() {
+            if let Some(point) = cur_point.read().as_ref() {
+                let rect = engine.get_image_rect(point.object_index, point.offset);
+                edit_rect.set(rect);
+            } else {
+                edit_rect.set(None);
+            }
+        }
+    });
+
     rsx! {
         main {
             id: "workspace_main",
             class: "workspace",
             BalchugPreview {
-                atlas,
-                scenario,
                 preview_offset,
+                engine,
+                edit_rect,
             }
             Sidebar {
                 scenario,
                 preview_offset,
+                cur_point,
             }
         }
     }
@@ -41,21 +70,8 @@ impl OffsetListener for PreviewOffsetListener {
 }
 
 #[component]
-pub fn BalchugPreview(atlas: Signal<Atlas>, scenario: Signal<Scenario>, preview_offset: Signal<f32>) -> Element {
+pub fn BalchugPreview(preview_offset: Signal<f32>, engine: Signal<Option<BalchugEngine>>, edit_rect: Signal<Option<F32Rect>>) -> Element {
     let listener = PreviewOffsetListener { signal: preview_offset };
-    let mut engine: Signal<Option<BalchugEngine>> = use_signal(|| None);
-    use_effect(move || {
-        let atlas = atlas.read().clone();
-        if let Some(engine) = engine.read().as_ref() {
-            engine.set_atlas(atlas);
-        }
-    });
-    use_effect(move || {
-        let scenario = scenario.read().clone();
-        if let Some(engine) = engine.read().as_ref() {
-            engine.set_scenario(scenario);
-        }
-    });
 
     rsx! {
         section {
@@ -91,14 +107,15 @@ pub fn BalchugPreview(atlas: Signal<Atlas>, scenario: Signal<Scenario>, preview_
                     },
                 }
             }
+            PreviewOverlay {
+                rect: edit_rect,
+            }
         }
     }
 }
 
 #[component]
-pub fn Sidebar(scenario: Signal<Scenario>, preview_offset: Signal<f32>) -> Element {
-    let cur_point = use_signal(|| None);
-    
+pub fn Sidebar(scenario: Signal<Scenario>, preview_offset: Signal<f32>, cur_point: Signal<Option<TimeLinePoint>>) -> Element {
     rsx! {
         aside {
             id: "sidebar",
@@ -120,13 +137,13 @@ pub fn Sidebar(scenario: Signal<Scenario>, preview_offset: Signal<f32>) -> Eleme
             div {
                 id: "sidebar_container",
                 class: "panel-box",
-                StateProps {
-                    scenario,
-                    cur_point,
-                }
                 TimeLine {
                     scenario,
                     preview_offset,
+                    cur_point,
+                }
+                StateProps {
+                    scenario,
                     cur_point,
                 }
             }

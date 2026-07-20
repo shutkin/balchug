@@ -5,6 +5,7 @@ use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{console, Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2RenderingContext, Response, AddEventListenerOptions, WheelEvent, TouchEvent, MouseEvent};
 use balchug_common::atlas::{Atlas, AtlasItem, FontData};
+use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
 use balchug_common::sprite::Sprite;
 use crate::font::font_builder::build_font;
@@ -39,6 +40,7 @@ struct AppContext {
     touch_start_screen: Rc<Cell<f32>>,
     touch_start_scroll: Rc<Cell<f32>>,
     offset_listener: Rc<RefCell<Option<Box<dyn OffsetListener>>>>,
+    is_interactive: Rc<Cell<bool>>,
 }
 
 impl AppContext {
@@ -58,6 +60,7 @@ impl AppContext {
             touch_start_screen: Rc::new(Cell::new(0.0)),
             touch_start_scroll: Rc::new(Cell::new(0.0)),
             offset_listener: Rc::new(RefCell::new(None)),
+            is_interactive: Rc::new(Cell::new(true)),
         }
     }
 }
@@ -106,6 +109,37 @@ impl BalchugEngine {
         rebuild_font(&self.context, &self.renderer);
         self.context.force_rerender.set(true);
     }
+
+    pub fn set_offset_to_image_state(&self, object_index: usize, state_index: usize) {
+        let offset = self.context.scenario.borrow().images[object_index].animation.states[state_index].offset;
+        let offset = offset * self.context.canvas_width.get();
+        self.context.scroll.borrow_mut().set_value(offset);
+        if let Some(l) = self.context.offset_listener.borrow_mut().as_mut() {
+            l.offset_change(offset);
+        }
+        self.context.force_rerender.set(true);
+    }
+
+    pub fn set_interactive(&self, interactive: bool) {
+        self.context.is_interactive.set(interactive);
+    }
+
+    pub fn get_image_rect(&self, object_index: usize, offset: f32) -> Option<F32Rect> {
+        let sprite = &self.context.scenario.borrow().images[object_index];
+        //let scaled_offset = offset * self.context.canvas_width.get();
+        interpolate_state(&sprite.animation, offset).map(|state| {
+            let proportion = self.context.atlas_items.borrow().get(&sprite.atlas_item_id)
+                .map(|item| item.origin_height as f32 / item.origin_width as f32).unwrap_or(1.0);
+            let canvas_rect = self.canvas.get_bounding_client_rect();
+            let scaled_state = scale_sprite_state(&state, canvas_rect.width() as f32);
+            F32Rect {
+                x: scaled_state.x + canvas_rect.x() as f32,
+                y: scaled_state.y + canvas_rect.y() as f32,
+                width: scaled_state.width,
+                height: scaled_state.width * proportion,
+            }
+        })
+    }
 }
 
 fn rebuild_font(ctx: &AppContext, renderer: &GlRenderer) {
@@ -119,6 +153,7 @@ fn rebuild_font(ctx: &AppContext, renderer: &GlRenderer) {
             ctx.font.replace(res.font_data);
             ctx.font_atlas_items.replace(res.atlas.items);
             ctx.txt_texture_ready.replace(true);
+            ctx.force_rerender.set(true);
         }
     }
 }
@@ -151,7 +186,7 @@ fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     }
     for text_animation in &scenario.text_lines {
         if let Some(cur_state) = interpolate_state(&text_animation.animation, scaled_offset) && cur_state.color[3] > 0.01 {
-            for glyph_sprite in arrange_text_line(&text_animation, &cur_state, &ctx.font.borrow(), &ctx.font_atlas_items.borrow()) {
+            for glyph_sprite in arrange_text_line(text_animation, &cur_state, &ctx.font.borrow(), &ctx.font_atlas_items.borrow()) {
                 let glyph_sprite = Sprite {
                     state: scale_sprite_state(&glyph_sprite.state, width),
                     atlas_item: glyph_sprite.atlas_item,
@@ -217,9 +252,11 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let renderer = renderer.clone();
         let img = atlas_img.clone();
         let texture_ready = ctx.images_texture_ready.clone();
+        let force_rerender = ctx.force_rerender.clone();
         Closure::wrap(Box::new(move || {
             renderer.set_texture(&img);
             texture_ready.replace(true);
+            force_rerender.set(true);
         }) as Box<dyn FnMut()>)
     };
     atlas_img.set_onload(Some(on_load.as_ref().unchecked_ref()));
@@ -229,8 +266,9 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
     options.set_passive(false); // Explicitly allow preventDefault()
     let on_wheel = {
         let scroll = ctx.scroll.clone();
+        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: WheelEvent| {
-            if !scroll.borrow().has_permanent_target() {
+            if is_interactive.get() && !scroll.borrow().has_permanent_target() {
                 let cur_scroll = scroll.borrow().get_value();
                 scroll.borrow_mut().set_target(cur_scroll + (e.delta_y() * pixel_ratio) as f32, false);
             }
@@ -248,11 +286,14 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let touch_start_screen = ctx.touch_start_screen.clone();
         let touch_start_scroll = ctx.touch_start_scroll.clone();
         let scroll = ctx.scroll.clone();
+        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: TouchEvent| {
-            if let Some(touch) = e.touches().item(0) {
-                touch_start_screen.set(touch.page_y() as f32);
+            if is_interactive.get() {
+                if let Some(touch) = e.touches().item(0) {
+                    touch_start_screen.set(touch.page_y() as f32);
+                }
+                touch_start_scroll.set(scroll.borrow().get_value());
             }
-            touch_start_scroll.set(scroll.borrow().get_value());
             e.prevent_default();
         }) as Box<dyn FnMut(TouchEvent)>)
     };
@@ -267,11 +308,14 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let touch_start_screen = ctx.touch_start_screen.clone();
         let touch_start_scroll = ctx.touch_start_scroll.clone();
         let scroll = ctx.scroll.clone();
+        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: MouseEvent| {
-            touch_start_screen.set(e.client_y() as f32);
-            let cur_scroll_value = scroll.borrow().get_value();
-            touch_start_scroll.set(cur_scroll_value);
-            scroll.borrow_mut().set_target(cur_scroll_value, true);
+            if is_interactive.get() {
+                touch_start_screen.set(e.client_y() as f32);
+                let cur_scroll_value = scroll.borrow().get_value();
+                touch_start_scroll.set(cur_scroll_value);
+                scroll.borrow_mut().set_target(cur_scroll_value, true);
+            }
             e.prevent_default();
         }) as Box<dyn FnMut(MouseEvent)>)
     };
@@ -286,8 +330,9 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let touch_start_screen = ctx.touch_start_screen.clone();
         let touch_start_scroll = ctx.touch_start_scroll.clone();
         let scroll = ctx.scroll.clone();
+        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: TouchEvent| {
-            if let Some(touch) = e.touches().item(0) {
+            if is_interactive.get() && let Some(touch) = e.touches().item(0) {
                 let delta = (touch.page_y() as f32 - touch_start_screen.get()) * pixel_ratio as f32;
                 scroll.borrow_mut().set_target(touch_start_scroll.get() - delta, true);
             }
@@ -305,8 +350,9 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let touch_start_screen = ctx.touch_start_screen.clone();
         let touch_start_scroll = ctx.touch_start_scroll.clone();
         let scroll = ctx.scroll.clone();
+        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: MouseEvent| {
-            if scroll.borrow().has_permanent_target() {
+            if is_interactive.get() && scroll.borrow().has_permanent_target() {
                 let delta = (e.client_y() as f32 - touch_start_screen.get()) * pixel_ratio as f32;
                 scroll.borrow_mut().set_target(touch_start_scroll.get() - delta, true);
                 e.prevent_default();

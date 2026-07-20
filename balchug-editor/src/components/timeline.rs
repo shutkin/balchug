@@ -17,6 +17,7 @@ struct TimeLineView {
 pub struct TimeLinePoint {
     pub object_index: usize,
     pub state_index: usize,
+    pub offset: f32,
     svg_x: f32,
     svg_y: f32,
 }
@@ -176,11 +177,12 @@ fn build_offset_d(offset: f32, view: TimeLineView) -> String {
 fn build_path_d(states: &[SpriteState], index: usize, view: TimeLineView, mut points_store: Store<Vec<TimeLinePoint>>) -> String {
     let x = index * 20 + 10;
     let points = states.iter().enumerate()
-        .map(|(i, state)| (i, (state.offset - view.offset) * view.scale))
-        .filter(|(_, y)| *y > 0.0 && *y < view.height)
-        .map(|(i, y)| TimeLinePoint {
+        .map(|(i, state)| (i, (state.offset - view.offset) * view.scale, state.offset))
+        .filter(|(_, y, _)| *y > 0.0 && *y < view.height)
+        .map(|(i, y, offset)| TimeLinePoint {
             object_index: index,
             state_index: i,
+            offset,
             svg_x: x as f32,
             svg_y: y,
         })

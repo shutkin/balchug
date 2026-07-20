@@ -35,7 +35,7 @@ pub fn scale_sprite_state(state: &SpriteState, scale: f32) -> SpriteState {
 
 pub fn interpolate_state(states: &AnimationStates, offset: f32) -> Option<SpriteState> {
     for index in 0 .. states.states.len() - 1 {
-        if offset >= states.states[index].offset && offset < states.states[index + 1].offset {
+        if offset >= states.states[index].offset && offset <= states.states[index + 1].offset {
             return Some(interpolate_states(states, index, offset));
         }
     }

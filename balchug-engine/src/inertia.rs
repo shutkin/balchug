@@ -72,4 +72,10 @@ impl Inertia {
         self.speed /= 1.0 + elapsed * friction_factor;
         ((self.value - prev_value).abs() > 0.025, self.value)
     }
+    
+    pub fn set_value(&mut self, value: f32) {
+        self.value = value;
+        self.target = None;
+        self.speed = 0.0;
+    }
 }

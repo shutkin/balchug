@@ -50,6 +50,7 @@ pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLineP
                     onsubmit: move |event| {
                         event.prevent_default();
                         apply_fn(event.values());
+                        cur_point.set(None);
                     },
                     div {
                         id: "state_props_row1",
