@@ -1,9 +1,12 @@
 use dioxus::html::geometry::ElementPoint;
 use dioxus::prelude::*;
 use balchug_common::F32Rect;
+use balchug_engine::BalchugEngine;
+use crate::states::sprite_state_edit::SpriteStateEdit;
 
 const GAP: f32 = 5.0;
 
+#[derive(Clone, Copy)]
 enum RectArea {
     Outside,
     Inside,
@@ -14,38 +17,114 @@ enum RectArea {
 }
 
 #[component]
-pub fn PreviewOverlay(rect: Signal<Option<F32Rect>>) -> Element {
+pub fn PreviewOverlay(
+    edit_state: Signal<Option<SpriteStateEdit>>,
+    engine: Signal<Option<BalchugEngine>>,
+) -> Element {
+    if edit_state.read().is_none() {
+        return rsx! {};
+    }
+
+    let memo = use_memo(move || *edit_state.read());
+
     let mut cursor_type = use_signal(move || "default");
+    let mut drag_rect_area = use_signal(move || RectArea::Outside);
+    let mut start_drag_rect = use_signal(F32Rect::default);
+    let mut start_drag_coordinates: Signal<Option<ElementPoint>> = use_signal(move || None);
 
     rsx! {
-        if let Some(rect) = *rect.read() {
+        div {
+            id: "preview_overlay_container",
+            style: "position: absolute; left: 0; top: 4px; width: 100%; height: 100%; cursor: {cursor_type};",
+            onmousemove: move |event: Event<MouseData>| {
+                event.prevent_default();
+                if let Some(engine) = engine.read().as_ref() && let Some(s) = *memo.read() {
+                    if let Some(start_coordinates) = *start_drag_coordinates.read() {
+                        let coordinates = event.element_coordinates();
+                        let dx = (coordinates.x - start_coordinates.x) as f32;
+                        let dy = (coordinates.y - start_coordinates.y) as f32;
+                        let start_rect = *start_drag_rect.read();
+                        let new_rect = modify_rect(start_rect, dx, dy, *drag_rect_area.read());
+                        let sprite_state = engine.set_image_state_rect(new_rect, s.sprite_index, s.state_index);
+                        edit_state.set(Some(s.change_rect(new_rect).change_state(sprite_state)));
+                    } else {
+                        let coordinates = event.element_coordinates();
+                        let cursor = match check_rect_area(s.rect, coordinates) {
+                            RectArea::Inside => "move",
+                            RectArea::Left | RectArea::Right => "ew-resize",
+                            RectArea::Top | RectArea::Bottom => "ns-resize",
+                            _ => "default",
+                        };
+                        cursor_type.set(cursor);
+                    }
+                }
+            },
+            onmousedown: move |event: Event<MouseData>| {
+                let cur_rect = edit_state.read().unwrap().rect;
+                let coordinates = event.element_coordinates();
+                let area = check_rect_area(cur_rect, coordinates);
+                drag_rect_area.set(area);
+                if !matches!(area, RectArea::Outside) {
+                    start_drag_rect.set(cur_rect);
+                    start_drag_coordinates.set(Some(coordinates));
+                }
+            },
+            onmouseup: move |_: Event<MouseData>| {
+                drag_rect_area.set(RectArea::Outside);
+                start_drag_coordinates.set(None);
+                cursor_type.set("default");
+            },
             svg {
                 id: "preview_overlay",
-                style: "position: absolute; left: 0; top: 4px; width: 100%; height: 100%; cursor: {cursor_type};",
-
-                onmousemove: move |event: Event<MouseData>| {
-                    let coordinates = event.element_coordinates();
-                    let cursor = match rect_area(rect, coordinates) {
-                        RectArea::Inside => "move",
-                        RectArea::Left | RectArea::Right => "ew-resize",
-                        RectArea::Top | RectArea::Bottom => "ns-resize",
-                        _ => "default",
-                    };
-                    cursor_type.set(cursor);
-                },
-
+                style: "width: 100%; height: 100%;",
                 path {
                     fill: "none",
-                    stroke: "var(--accent-blue)",
+                    stroke: "var(--accent-purple)",
                     stroke_width: "5",
-                    d: build_rect_d(rect),
+                    d: build_rect_d(edit_state.read().unwrap().rect),
                 }
             }
         }
     }
 }
 
-fn rect_area(rect: F32Rect, point: ElementPoint) -> RectArea {
+fn modify_rect(start_rect: F32Rect, dx: f32, dy: f32, area: RectArea) -> F32Rect {
+    match area {
+        RectArea::Outside => start_rect,
+        RectArea::Inside => F32Rect {
+            x: start_rect.x + dx,
+            y: start_rect.y + dy,
+            width: start_rect.width,
+            height: start_rect.height,
+        },
+        RectArea::Left => F32Rect {
+            x: start_rect.x + dx,
+            y: start_rect.y,
+            width: start_rect.width - dx,
+            height: start_rect.height - dx * start_rect.height / start_rect.width,
+        },
+        RectArea::Right => F32Rect {
+            x: start_rect.x,
+            y: start_rect.y,
+            width: start_rect.width + dx,
+            height: start_rect.height + dx * start_rect.height / start_rect.width,
+        },
+        RectArea::Top => F32Rect {
+            x: start_rect.x,
+            y: start_rect.y + dy,
+            width: start_rect.width - dy * start_rect.width / start_rect.height,
+            height: start_rect.height - dy,
+        },
+        RectArea::Bottom => F32Rect {
+            x: start_rect.x,
+            y: start_rect.y,
+            width: start_rect.width + dy * start_rect.width / start_rect.height,
+            height: start_rect.height + dy,
+        },
+    }
+}
+
+fn check_rect_area(rect: F32Rect, point: ElementPoint) -> RectArea {
     let x = point.x as f32;
     let y = point.y as f32;
     if x < rect.x - GAP || x > rect.x + rect.width + GAP || y < rect.y - GAP || y > rect.y + rect.height + GAP {

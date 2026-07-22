@@ -1,19 +1,21 @@
 use dioxus::prelude::*;
 use balchug_common::scenario::Scenario;
+use balchug_common::sprite::SpriteState;
 use crate::components::timeline::TimeLinePoint;
+use crate::states::sprite_state_edit::SpriteStateEdit;
 
 #[component]
-pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLinePoint>>) -> Element {
-    let pnt = *cur_point.read();
-    let state = pnt
-        .and_then(|cur_point| {
-            scenario.read().images.get(cur_point.object_index)
-                .and_then(|o| o.animation.states.get(cur_point.state_index).copied())
-        });
-    if let Some(state) = state && let Some(pnt) = pnt {
+pub fn StateEditor(
+    edit_state: Signal<Option<SpriteStateEdit>>,
+    scenario: Signal<Scenario>,
+    selected_point: Signal<Option<TimeLinePoint>>,
+) -> Element {
+    let memo = use_memo(move || *edit_state.read());
+    let scenario_memo = use_memo(move || scenario.read().clone());
+
+    if let Some(se) = *memo.read() {
         let mut apply_fn = move |values: Vec<(String, FormValue)>| {
-            let mut new_scenario = scenario.read().clone();
-            let new_state = new_scenario.images[pnt.object_index].animation.states.get_mut(pnt.state_index).unwrap();
+            let mut state = SpriteState::default();
             for (name, value) in values {
                 let v = match value {
                     FormValue::Text(txt) => txt.parse::<f32>().unwrap_or(f32::NAN),
@@ -21,16 +23,19 @@ pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLineP
                 };
                 if !v.is_nan() {
                     match name.as_str() {
-                        "offset" => new_state.offset = v,
-                        "x" => new_state.x = v,
-                        "y" => new_state.y = v,
-                        "scale" => new_state.width = v,
-                        "alpha" => new_state.color[3] = v,
+                        "offset" => state.offset = v,
+                        "x" => state.x = v,
+                        "y" => state.y = v,
+                        "scale" => state.width = v,
+                        "alpha" => state.color[3] = v,
                         _ => {}
                     }
                 }
             }
-            scenario.set(new_scenario);
+            let mut ns = scenario_memo.read().clone();
+            ns.images[se.sprite_index].animation.states[se.state_index] = state;
+            scenario.set(ns);
+            selected_point.set(None);
         };
 
         rsx! {
@@ -50,7 +55,6 @@ pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLineP
                     onsubmit: move |event| {
                         event.prevent_default();
                         apply_fn(event.values());
-                        cur_point.set(None);
                     },
                     div {
                         id: "state_props_row1",
@@ -63,7 +67,7 @@ pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLineP
                                 input {
                                     r#type: "number",
                                     name: "offset",
-                                    value: "{state.offset}",
+                                    value: "{round(se.state.offset)}",
                                     step: "0.001",
                                 }
                             }
@@ -76,7 +80,7 @@ pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLineP
                                 input {
                                     r#type: "number",
                                     name: "x",
-                                    value: "{state.x}",
+                                    value: "{round(se.state.x)}",
                                     step: "0.001",
                                 }
                             }
@@ -89,7 +93,7 @@ pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLineP
                                 input {
                                     r#type: "number",
                                     name: "y",
-                                    value: "{state.y}",
+                                    value: "{round(se.state.y)}",
                                     step: "0.001",
                                 }
                             }
@@ -106,7 +110,7 @@ pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLineP
                                 input {
                                     r#type: "number",
                                     name: "scale",
-                                    value: "{state.width}",
+                                    value: "{round(se.state.width)}",
                                     step: "0.001",
                                 }
                             }
@@ -119,17 +123,32 @@ pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLineP
                                 input {
                                     r#type: "number",
                                     name: "alpha",
-                                    value: "{state.color[3]}",
+                                    value: "{round(se.state.color[3])}",
                                     step: "0.001",
                                 }
                             }
                         }
                     }
-                    input {
-                        id: "state_apply",
-                        class: "btn btn-primary",
-                        r#type: "submit",
-                        "Apply"
+                    div {
+                        id: "state_props_btn_row",
+                        class: "form-row",
+                        input {
+                            id: "state_apply",
+                            class: "btn btn-primary",
+                            r#type: "submit",
+                            "Apply"
+                        }
+                        button {
+                            id: "state_cancel",
+                            class: "btn btn-secondary",
+                            onclick: move |_| {
+                                let mut ns = scenario_memo.read().clone();
+                                ns.images[se.sprite_index].animation.states[se.state_index] = se.original_state;
+                                scenario.set(ns);
+                                selected_point.set(None);
+                            },
+                            "Cancel"
+                        }
                     }
                 }
             }
@@ -137,4 +156,8 @@ pub fn StateProps(scenario: Signal<Scenario>, cur_point: Signal<Option<TimeLineP
     } else {
         rsx! {}
     }
+}
+
+fn round(value: f32) -> f32 {
+    (value * 1000.0).round() / 1000.0
 }

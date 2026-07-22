@@ -5,6 +5,7 @@ use crate::constants::{build_atlas, build_scenario};
 
 mod components;
 mod constants;
+mod states;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/styling/style.css");
@@ -15,21 +16,25 @@ fn main() {
 
 #[component]
 fn App() -> Element {
+    let engine: Signal<Option<BalchugEngine>> = use_signal(|| None);
+
     let atlas = build_atlas();
     let scenario = build_scenario(&atlas.items, &[2, 1, 5, 7, 10, 6, 3, 8, 4, 9]);
 
     let atlas_signal = Signal::new(atlas);
-    let scenario_signal = Signal::new(scenario);
-    let engine: Signal<Option<BalchugEngine>> = use_signal(|| None);
+    let scenario_signal = use_signal(move || scenario);
+
     use_effect(move || {
         let atlas = atlas_signal.read().clone();
         if let Some(engine) = engine.read().as_ref() {
+            web_sys::console::log_1(&"Atlas changed".into());
             engine.set_atlas(atlas);
         }
     });
     use_effect(move || {
         let scenario = scenario_signal.read().clone();
         if let Some(engine) = engine.read().as_ref() {
+            web_sys::console::log_1(&"Scenario changed".into());
             engine.set_scenario(scenario);
         }
     });

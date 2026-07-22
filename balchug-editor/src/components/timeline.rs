@@ -15,19 +15,23 @@ struct TimeLineView {
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct TimeLinePoint {
-    pub object_index: usize,
+    pub sprite_index: usize,
     pub state_index: usize,
-    pub offset: f32,
     svg_x: f32,
     svg_y: f32,
 }
 
 #[component]
-pub fn TimeLine(scenario: Signal<Scenario>, preview_offset: Signal<f32>, cur_point: Signal<Option<TimeLinePoint>>) -> Element {
+pub fn TimeLine(
+    scenario: ReadSignal<Scenario>,
+    preview_offset: ReadSignal<f32>,
+    selected_point: Signal<Option<TimeLinePoint>>,
+) -> Element {
     let mut offset = use_signal(|| -1_f32);
     let mut scale = use_signal(|| 50_f32);
     let mut svg_size = use_signal(|| (0_f32, 0_f32));
     let mut cursor_type = use_signal(|| "default".to_string());
+    let point_memo = use_memo(move || *selected_point.read());
     let points: Store<Vec<TimeLinePoint>> = use_store(Vec::new);
 
     let build_view = move || {
@@ -66,7 +70,8 @@ pub fn TimeLine(scenario: Signal<Scenario>, preview_offset: Signal<f32>, cur_poi
                 }
             },
             onmousedown: move |event| {
-                cur_point.set(find_point(event.as_ref(), &points.read()));
+                let point = find_point(event.as_ref(), &points.read());
+                selected_point.set(point);
             },
             svg {
                 id: "timeline_svg",
@@ -79,12 +84,12 @@ pub fn TimeLine(scenario: Signal<Scenario>, preview_offset: Signal<f32>, cur_poi
                         points,
                     }
                 }
-                CurPointMark {
-                    cur_point,
-                }
                 CurOffsetPath {
                     cur_offset: *preview_offset.read(),
                     view: build_view(),
+                }
+                CurPointMark {
+                    point_memo,
                 }
             }
         }
@@ -140,12 +145,13 @@ fn AnimationPath(states: Vec<SpriteState>, index: usize, view: TimeLineView, poi
 }
 
 #[component]
-fn CurPointMark(cur_point: Signal<Option<TimeLinePoint>>) -> Element {
-    if let Some(point) = cur_point.read().as_ref() {
+fn CurPointMark(point_memo: Memo<Option<TimeLinePoint>>) -> Element {
+    if let Some(point) = point_memo.read().as_ref() {
         rsx! {
             path {
                 fill: "none",
                 stroke: "var(--accent-purple)",
+                stroke_width: "5",
                 d: build_mark_d(point),
             }
         }
@@ -177,18 +183,17 @@ fn build_offset_d(offset: f32, view: TimeLineView) -> String {
 fn build_path_d(states: &[SpriteState], index: usize, view: TimeLineView, mut points_store: Store<Vec<TimeLinePoint>>) -> String {
     let x = index * 20 + 10;
     let points = states.iter().enumerate()
-        .map(|(i, state)| (i, (state.offset - view.offset) * view.scale, state.offset))
-        .filter(|(_, y, _)| *y > 0.0 && *y < view.height)
-        .map(|(i, y, offset)| TimeLinePoint {
-            object_index: index,
+        .map(|(i, state)| (i, (state.offset - view.offset) * view.scale))
+        .filter(|(_, y)| *y > 0.0 && *y < view.height)
+        .map(|(i, y)| TimeLinePoint {
+            sprite_index: index,
             state_index: i,
-            offset,
             svg_x: x as f32,
             svg_y: y,
         })
         .collect::<Vec<_>>();
     let mut points_write = points_store.write();
-    points_write.retain(|point| point.object_index != index);
+    points_write.retain(|point| point.sprite_index != index);
     points_write.extend_from_slice(&points);
     if points.is_empty() {
         return if states.is_empty() {

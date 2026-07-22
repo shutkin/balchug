@@ -4,5 +4,5 @@
 
 pub mod workspace;
 pub mod timeline;
-mod state_props;
+mod state_editor;
 mod overlay;

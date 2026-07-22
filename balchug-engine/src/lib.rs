@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{console, Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2RenderingContext, Response, AddEventListenerOptions, WheelEvent, TouchEvent, MouseEvent};
+use web_sys::{Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2RenderingContext, Response, AddEventListenerOptions, WheelEvent, TouchEvent, MouseEvent};
 use balchug_common::atlas::{Atlas, AtlasItem, FontData};
 use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
-use balchug_common::sprite::Sprite;
+use balchug_common::sprite::{Sprite, SpriteState};
 use crate::font::font_builder::build_font;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
@@ -40,7 +40,6 @@ struct AppContext {
     touch_start_screen: Rc<Cell<f32>>,
     touch_start_scroll: Rc<Cell<f32>>,
     offset_listener: Rc<RefCell<Option<Box<dyn OffsetListener>>>>,
-    is_interactive: Rc<Cell<bool>>,
 }
 
 impl AppContext {
@@ -60,7 +59,6 @@ impl AppContext {
             touch_start_screen: Rc::new(Cell::new(0.0)),
             touch_start_scroll: Rc::new(Cell::new(0.0)),
             offset_listener: Rc::new(RefCell::new(None)),
-            is_interactive: Rc::new(Cell::new(true)),
         }
     }
 }
@@ -79,7 +77,7 @@ impl BalchugEngine {
             let rect = parent.get_bounding_client_rect();
             let (width, height) = (rect.width() as f32 * self.pixel_ratio,
                                    rect.height() as f32 * self.pixel_ratio);
-            console::log_1(&format!("Resizing canvas to {width}x{height}").into());
+            web_sys::console::log_1(&format!("Resizing canvas to {width}x{height}").into());
             let (width, height) = (width.round() as u32, height.round() as u32);
             self.canvas.set_width(width);
             self.canvas.set_height(height);
@@ -98,6 +96,7 @@ impl BalchugEngine {
     }
 
     pub fn set_scenario(&self, scenario: Scenario) {
+        web_sys::console::log_1(&"Update scenario".into());
         self.context.scenario.replace(scenario);
         self.update();
     }
@@ -110,35 +109,43 @@ impl BalchugEngine {
         self.context.force_rerender.set(true);
     }
 
-    pub fn set_offset_to_image_state(&self, object_index: usize, state_index: usize) {
-        let offset = self.context.scenario.borrow().images[object_index].animation.states[state_index].offset;
-        let offset = offset * self.context.canvas_width.get();
+    pub fn scroll_to_image_state(&self, object_index: usize, state_index: usize) -> F32Rect {
+        let sprite = &self.context.scenario.borrow().images[object_index];
+        let state = sprite.animation.states[state_index];
+        let offset = state.offset * self.context.canvas_width.get();
         self.context.scroll.borrow_mut().set_value(offset);
         if let Some(l) = self.context.offset_listener.borrow_mut().as_mut() {
             l.offset_change(offset);
         }
         self.context.force_rerender.set(true);
+
+        let proportion = self.context.atlas_items.borrow().get(&sprite.atlas_item_id)
+            .map(|item| item.origin_height as f32 / item.origin_width as f32).unwrap_or(1.0);
+        let canvas_rect = self.canvas.get_bounding_client_rect();
+        let scaled_state = scale_sprite_state(&state, canvas_rect.width() as f32);
+        F32Rect {
+            x: scaled_state.x + canvas_rect.x() as f32,
+            y: scaled_state.y + canvas_rect.y() as f32,
+            width: scaled_state.width,
+            height: scaled_state.width * proportion,
+        }
     }
 
-    pub fn set_interactive(&self, interactive: bool) {
-        self.context.is_interactive.set(interactive);
-    }
-
-    pub fn get_image_rect(&self, object_index: usize, offset: f32) -> Option<F32Rect> {
-        let sprite = &self.context.scenario.borrow().images[object_index];
-        //let scaled_offset = offset * self.context.canvas_width.get();
-        interpolate_state(&sprite.animation, offset).map(|state| {
-            let proportion = self.context.atlas_items.borrow().get(&sprite.atlas_item_id)
-                .map(|item| item.origin_height as f32 / item.origin_width as f32).unwrap_or(1.0);
-            let canvas_rect = self.canvas.get_bounding_client_rect();
-            let scaled_state = scale_sprite_state(&state, canvas_rect.width() as f32);
-            F32Rect {
-                x: scaled_state.x + canvas_rect.x() as f32,
-                y: scaled_state.y + canvas_rect.y() as f32,
-                width: scaled_state.width,
-                height: scaled_state.width * proportion,
-            }
-        })
+    pub fn set_image_state_rect(&self, rect: F32Rect, object_index: usize, state_index: usize) -> SpriteState {
+        let scenario = &mut self.context.scenario.borrow_mut();
+        let cur_state = scenario.images[object_index].animation.states[state_index];
+        let canvas_rect = self.canvas.get_bounding_client_rect();
+        let state = SpriteState {
+            offset: cur_state.offset,
+            x: rect.x - canvas_rect.x() as f32,
+            y: rect.y - canvas_rect.y() as f32,
+            width: rect.width,
+            color: cur_state.color,
+        };
+        let scaled_state = scale_sprite_state(&state, 1.0 / canvas_rect.width() as f32);
+        scenario.images[object_index].animation.states[state_index] = scaled_state;
+        self.context.force_rerender.set(true);
+        scaled_state
     }
 }
 
@@ -147,7 +154,7 @@ fn rebuild_font(ctx: &AppContext, renderer: &GlRenderer) {
     let letters = scenario_letters(&ctx.scenario.borrow());
     if !bytes.is_empty() && !letters.is_empty() {
         let font_size = scenario_text_size(&ctx.scenario.borrow(), ctx.canvas_width.get());
-        console::log_1(&format!("Font size: {font_size}").into());
+        web_sys::console::log_1(&format!("Font size: {font_size}").into());
         if let Some(res) = build_font(&letters, &bytes, font_size) {
             renderer.set_font_texture(res.atlas.width, res.atlas.height, &res.data);
             ctx.font.replace(res.font_data);
@@ -231,7 +238,7 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let on_body = {
             Closure::wrap(Box::new(move |buf_value: JsValue| {
                 let bytes = js_sys::Uint8Array::new(&buf_value).to_vec();
-                console::log_1(&format!("Load font {} bytes", bytes.len()).into());
+                web_sys::console::log_1(&format!("Load font {} bytes", bytes.len()).into());
                 ctx.font_bytes.replace(bytes);
                 rebuild_font(&ctx, &renderer);
             }) as Box<dyn FnMut(JsValue)>)
@@ -266,9 +273,8 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
     options.set_passive(false); // Explicitly allow preventDefault()
     let on_wheel = {
         let scroll = ctx.scroll.clone();
-        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: WheelEvent| {
-            if is_interactive.get() && !scroll.borrow().has_permanent_target() {
+            if !scroll.borrow().has_permanent_target() {
                 let cur_scroll = scroll.borrow().get_value();
                 scroll.borrow_mut().set_target(cur_scroll + (e.delta_y() * pixel_ratio) as f32, false);
             }
@@ -286,14 +292,11 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let touch_start_screen = ctx.touch_start_screen.clone();
         let touch_start_scroll = ctx.touch_start_scroll.clone();
         let scroll = ctx.scroll.clone();
-        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: TouchEvent| {
-            if is_interactive.get() {
-                if let Some(touch) = e.touches().item(0) {
-                    touch_start_screen.set(touch.page_y() as f32);
-                }
-                touch_start_scroll.set(scroll.borrow().get_value());
+            if let Some(touch) = e.touches().item(0) {
+                touch_start_screen.set(touch.page_y() as f32);
             }
+            touch_start_scroll.set(scroll.borrow().get_value());
             e.prevent_default();
         }) as Box<dyn FnMut(TouchEvent)>)
     };
@@ -308,14 +311,11 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let touch_start_screen = ctx.touch_start_screen.clone();
         let touch_start_scroll = ctx.touch_start_scroll.clone();
         let scroll = ctx.scroll.clone();
-        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: MouseEvent| {
-            if is_interactive.get() {
-                touch_start_screen.set(e.client_y() as f32);
-                let cur_scroll_value = scroll.borrow().get_value();
-                touch_start_scroll.set(cur_scroll_value);
-                scroll.borrow_mut().set_target(cur_scroll_value, true);
-            }
+            touch_start_screen.set(e.client_y() as f32);
+            let cur_scroll_value = scroll.borrow().get_value();
+            touch_start_scroll.set(cur_scroll_value);
+            scroll.borrow_mut().set_target(cur_scroll_value, true);
             e.prevent_default();
         }) as Box<dyn FnMut(MouseEvent)>)
     };
@@ -330,9 +330,8 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let touch_start_screen = ctx.touch_start_screen.clone();
         let touch_start_scroll = ctx.touch_start_scroll.clone();
         let scroll = ctx.scroll.clone();
-        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: TouchEvent| {
-            if is_interactive.get() && let Some(touch) = e.touches().item(0) {
+            if let Some(touch) = e.touches().item(0) {
                 let delta = (touch.page_y() as f32 - touch_start_screen.get()) * pixel_ratio as f32;
                 scroll.borrow_mut().set_target(touch_start_scroll.get() - delta, true);
             }
@@ -350,9 +349,8 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         let touch_start_screen = ctx.touch_start_screen.clone();
         let touch_start_scroll = ctx.touch_start_scroll.clone();
         let scroll = ctx.scroll.clone();
-        let is_interactive = ctx.is_interactive.clone();
         Closure::wrap(Box::new(move |e: MouseEvent| {
-            if is_interactive.get() && scroll.borrow().has_permanent_target() {
+            if scroll.borrow().has_permanent_target() {
                 let delta = (e.client_y() as f32 - touch_start_screen.get()) * pixel_ratio as f32;
                 scroll.borrow_mut().set_target(touch_start_scroll.get() - delta, true);
                 e.prevent_default();
@@ -401,11 +399,11 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
     *on_frame.borrow_mut() = Closure::wrap(Box::new(move || {
         render_clone();
         if let Err(err) = window_clone.request_animation_frame(on_frame_clone.borrow().as_ref().unchecked_ref()) {
-            console::error_1(&format!("Request animation frame failed: {err:?}").into());
+            web_sys::console::error_1(&format!("Request animation frame failed: {err:?}").into());
         }
     }));
     if let Err(err) = window.request_animation_frame(on_frame.borrow().as_ref().unchecked_ref()) {
-        console::error_1(&format!("Request first animation frame failed: {err:?}").into());
+        web_sys::console::error_1(&format!("Request first animation frame failed: {err:?}").into());
     }
 
     BalchugEngine {

@@ -3,39 +3,37 @@ use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
 use balchug_common::atlas::Atlas;
-use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
 use balchug_engine::{start_engine, BalchugEngine, OffsetListener};
 use crate::components::overlay::PreviewOverlay;
-use crate::components::state_props::StateProps;
+use crate::components::state_editor::StateEditor;
 use crate::components::timeline::{TimeLine, TimeLinePoint};
+use crate::states::sprite_state_edit::SpriteStateEdit;
 
 static ASSETS_DIR: Asset = asset!("/assets");
 
 #[component]
-pub fn Workspace(atlas: Signal<Atlas>, scenario: Signal<Scenario>, engine: Signal<Option<BalchugEngine>>) -> Element {
-    let preview_offset = Signal::new(0_f32);
-    let cur_point: Signal<Option<TimeLinePoint>> = use_signal(|| None);
-    let mut edit_rect = use_signal(move || None);
+pub fn Workspace(atlas: ReadSignal<Atlas>, scenario: Signal<Scenario>, engine: Signal<Option<BalchugEngine>>) -> Element {
+    let selected_point = use_signal(move || Option::<TimeLinePoint>::None);
+    let mut edit_state = use_signal(move || Option::<SpriteStateEdit>::None);
+    let preview_offset = use_signal(move || 0_f32);
 
     use_effect(move || {
         if let Some(engine) = engine.read().as_ref() {
-            if let Some(cur_point) = cur_point.read().as_ref()  {
-                engine.set_interactive(false);
-                engine.set_offset_to_image_state(cur_point.object_index, cur_point.state_index);
+            if let Some(point) = *selected_point.read() {
+                let state = scenario.read().images[point.sprite_index].animation.states[point.state_index];
+                let rect = engine.scroll_to_image_state(point.sprite_index, point.state_index);
+                let s = SpriteStateEdit {
+                    sprite_index: point.sprite_index,
+                    state_index: point.state_index,
+                    state,
+                    original_state: state,
+                    rect,
+                };
+                web_sys::console::log_1(&format!("New edit state from {point:?}").into());
+                edit_state.set(Some(s));
             } else {
-                engine.set_interactive(true);
-            }
-        }
-    });
-
-    use_effect(move || {
-        if let Some(engine) = engine.read().as_ref() {
-            if let Some(point) = cur_point.read().as_ref() {
-                let rect = engine.get_image_rect(point.object_index, point.offset);
-                edit_rect.set(rect);
-            } else {
-                edit_rect.set(None);
+                edit_state.set(None);
             }
         }
     });
@@ -47,12 +45,13 @@ pub fn Workspace(atlas: Signal<Atlas>, scenario: Signal<Scenario>, engine: Signa
             BalchugPreview {
                 preview_offset,
                 engine,
-                edit_rect,
+                edit_state,
             }
             Sidebar {
                 scenario,
                 preview_offset,
-                cur_point,
+                selected_point,
+                edit_state,
             }
         }
     }
@@ -70,7 +69,11 @@ impl OffsetListener for PreviewOffsetListener {
 }
 
 #[component]
-pub fn BalchugPreview(preview_offset: Signal<f32>, engine: Signal<Option<BalchugEngine>>, edit_rect: Signal<Option<F32Rect>>) -> Element {
+pub fn BalchugPreview(
+    edit_state: Signal<Option<SpriteStateEdit>>,
+    preview_offset: Signal<f32>,
+    engine: Signal<Option<BalchugEngine>>,
+) -> Element {
     let listener = PreviewOffsetListener { signal: preview_offset };
 
     rsx! {
@@ -102,20 +105,27 @@ pub fn BalchugPreview(preview_offset: Signal<f32>, engine: Signal<Option<Balchug
                         if let Ok(canvas) = raw_element.dyn_into::<web_sys::HtmlCanvasElement>() {
                             let balchug_engine = start_engine(window, canvas, &ASSETS_DIR.to_string());
                             balchug_engine.set_offset_listener(Box::new(listener.clone()));
+                            web_sys::console::log_1(&"Engine start".into());
                             engine.set(Some(balchug_engine));
                         }
                     },
                 }
             }
             PreviewOverlay {
-                rect: edit_rect,
+                edit_state,
+                engine,
             }
         }
     }
 }
 
 #[component]
-pub fn Sidebar(scenario: Signal<Scenario>, preview_offset: Signal<f32>, cur_point: Signal<Option<TimeLinePoint>>) -> Element {
+pub fn Sidebar(
+    scenario: Signal<Scenario>,
+    edit_state: Signal<Option<SpriteStateEdit>>,
+    preview_offset: Signal<f32>,
+    selected_point: Signal<Option<TimeLinePoint>>,
+) -> Element {
     rsx! {
         aside {
             id: "sidebar",
@@ -140,11 +150,12 @@ pub fn Sidebar(scenario: Signal<Scenario>, preview_offset: Signal<f32>, cur_poin
                 TimeLine {
                     scenario,
                     preview_offset,
-                    cur_point,
+                    selected_point,
                 }
-                StateProps {
+                StateEditor {
                     scenario,
-                    cur_point,
+                    edit_state,
+                    selected_point,
                 }
             }
         }
