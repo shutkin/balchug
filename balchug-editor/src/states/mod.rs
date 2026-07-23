@@ -1,1 +1,1 @@
-pub mod sprite_state_edit;
+pub mod sprite_editor;

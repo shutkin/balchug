@@ -1,19 +1,13 @@
 use dioxus::prelude::*;
-use balchug_common::scenario::Scenario;
 use balchug_common::sprite::SpriteState;
-use crate::components::timeline::TimeLinePoint;
-use crate::states::sprite_state_edit::SpriteStateEdit;
+use crate::controllers::sprite_editor::SpriteEditController;
 
 #[component]
-pub fn StateEditor(
-    edit_state: Signal<Option<SpriteStateEdit>>,
-    scenario: Signal<Scenario>,
-    selected_point: Signal<Option<TimeLinePoint>>,
-) -> Element {
-    let memo = use_memo(move || *edit_state.read());
-    let scenario_memo = use_memo(move || scenario.read().clone());
-
-    if let Some(se) = *memo.read() {
+pub fn StateEditor(controller: SpriteEditController) -> Element {
+    if let Some(se) = controller.get_cur_state() {
+        let mut c0 = controller.clone();
+        let mut c1 = controller.clone();
+        
         let mut apply_fn = move |values: Vec<(String, FormValue)>| {
             let mut state = SpriteState::default();
             for (name, value) in values {
@@ -32,10 +26,8 @@ pub fn StateEditor(
                     }
                 }
             }
-            let mut ns = scenario_memo.read().clone();
-            ns.images[se.sprite_index].animation.states[se.state_index] = state;
-            scenario.set(ns);
-            selected_point.set(None);
+            c0.update_sprite_state(state);
+            c0.edit_mode_off();
         };
 
         rsx! {
@@ -67,7 +59,7 @@ pub fn StateEditor(
                                 input {
                                     r#type: "number",
                                     name: "offset",
-                                    value: "{round(se.state.offset)}",
+                                    value: "{round(se.sprite_state.offset)}",
                                     step: "0.001",
                                 }
                             }
@@ -80,7 +72,7 @@ pub fn StateEditor(
                                 input {
                                     r#type: "number",
                                     name: "x",
-                                    value: "{round(se.state.x)}",
+                                    value: "{round(se.sprite_state.x)}",
                                     step: "0.001",
                                 }
                             }
@@ -93,7 +85,7 @@ pub fn StateEditor(
                                 input {
                                     r#type: "number",
                                     name: "y",
-                                    value: "{round(se.state.y)}",
+                                    value: "{round(se.sprite_state.y)}",
                                     step: "0.001",
                                 }
                             }
@@ -110,7 +102,7 @@ pub fn StateEditor(
                                 input {
                                     r#type: "number",
                                     name: "scale",
-                                    value: "{round(se.state.width)}",
+                                    value: "{round(se.sprite_state.width)}",
                                     step: "0.001",
                                 }
                             }
@@ -123,7 +115,7 @@ pub fn StateEditor(
                                 input {
                                     r#type: "number",
                                     name: "alpha",
-                                    value: "{round(se.state.color[3])}",
+                                    value: "{round(se.sprite_state.color[3])}",
                                     step: "0.001",
                                 }
                             }
@@ -142,10 +134,8 @@ pub fn StateEditor(
                             id: "state_cancel",
                             class: "btn btn-secondary",
                             onclick: move |_| {
-                                let mut ns = scenario_memo.read().clone();
-                                ns.images[se.sprite_index].animation.states[se.state_index] = se.original_state;
-                                scenario.set(ns);
-                                selected_point.set(None);
+                                c1.update_sprite_state(se.original_sprite_state);
+                                c1.edit_mode_off();
                             },
                             "Cancel"
                         }

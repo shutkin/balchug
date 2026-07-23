@@ -7,7 +7,7 @@ use web_sys::{Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2Render
 use balchug_common::atlas::{Atlas, AtlasItem, FontData};
 use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
-use balchug_common::sprite::{Sprite, SpriteState};
+use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteState};
 use crate::font::font_builder::build_font;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
@@ -72,7 +72,7 @@ pub struct BalchugEngine {
 }
 
 impl BalchugEngine {
-    pub fn resize(&self) {
+    pub fn resize(&self) -> F32Rect {
         if let Some(parent) = self.canvas.parent_element() {
             let rect = parent.get_bounding_client_rect();
             let (width, height) = (rect.width() as f32 * self.pixel_ratio,
@@ -84,6 +84,15 @@ impl BalchugEngine {
             self.context.canvas_width.set(width as f32);
             self.renderer.set_sizes(width as f32, height as f32);
             self.update();
+            let rect = self.canvas.get_bounding_client_rect();
+            F32Rect {
+                x: rect.x() as f32,
+                y: rect.y() as f32,
+                width: rect.width() as f32,
+                height: rect.height() as f32,
+            }
+        } else {
+            F32Rect::default()
         }
     }
 
@@ -101,6 +110,14 @@ impl BalchugEngine {
         self.update();
     }
 
+    pub fn get_scenario_images(&self) -> Vec<SpriteAnimation> {
+        self.context.scenario.borrow().images.clone()
+    }
+    
+    pub fn get_atlas_item(&self, id: usize) -> Option<AtlasItem> {
+        self.context.atlas_items.borrow().get(&id).copied()
+    }
+
     fn update(&self) {
         let width = self.context.canvas_width.get();
         let max_scroll = scenario_max_offset(&self.context.scenario.borrow()) * width;
@@ -109,43 +126,19 @@ impl BalchugEngine {
         self.context.force_rerender.set(true);
     }
 
-    pub fn scroll_to_image_state(&self, object_index: usize, state_index: usize) -> F32Rect {
-        let sprite = &self.context.scenario.borrow().images[object_index];
-        let state = sprite.animation.states[state_index];
-        let offset = state.offset * self.context.canvas_width.get();
+    pub fn scroll_to_offset(&self, offset: f32) {
+        let offset = offset * self.context.canvas_width.get();
         self.context.scroll.borrow_mut().set_value(offset);
         if let Some(l) = self.context.offset_listener.borrow_mut().as_mut() {
             l.offset_change(offset);
         }
         self.context.force_rerender.set(true);
-
-        let proportion = self.context.atlas_items.borrow().get(&sprite.atlas_item_id)
-            .map(|item| item.origin_height as f32 / item.origin_width as f32).unwrap_or(1.0);
-        let canvas_rect = self.canvas.get_bounding_client_rect();
-        let scaled_state = scale_sprite_state(&state, canvas_rect.width() as f32);
-        F32Rect {
-            x: scaled_state.x + canvas_rect.x() as f32,
-            y: scaled_state.y + canvas_rect.y() as f32,
-            width: scaled_state.width,
-            height: scaled_state.width * proportion,
-        }
     }
 
-    pub fn set_image_state_rect(&self, rect: F32Rect, object_index: usize, state_index: usize) -> SpriteState {
+    pub fn set_image_sprite_state(&self, new_state: SpriteState, object_index: usize, state_index: usize) {
         let scenario = &mut self.context.scenario.borrow_mut();
-        let cur_state = scenario.images[object_index].animation.states[state_index];
-        let canvas_rect = self.canvas.get_bounding_client_rect();
-        let state = SpriteState {
-            offset: cur_state.offset,
-            x: rect.x - canvas_rect.x() as f32,
-            y: rect.y - canvas_rect.y() as f32,
-            width: rect.width,
-            color: cur_state.color,
-        };
-        let scaled_state = scale_sprite_state(&state, 1.0 / canvas_rect.width() as f32);
-        scenario.images[object_index].animation.states[state_index] = scaled_state;
+        scenario.images[object_index].animation.states[state_index] = new_state;
         self.context.force_rerender.set(true);
-        scaled_state
     }
 }
 

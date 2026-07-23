@@ -2,8 +2,8 @@ use std::ops::{AddAssign, MulAssign};
 use dioxus::html::geometry::WheelDelta;
 use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
-use balchug_common::scenario::Scenario;
-use balchug_common::sprite::{SpriteState};
+use balchug_common::sprite::SpriteState;
+use crate::controllers::sprite_editor::SpriteEditController;
 
 #[derive(Copy, Clone, PartialEq)]
 struct TimeLineView {
@@ -22,16 +22,16 @@ pub struct TimeLinePoint {
 }
 
 #[component]
-pub fn TimeLine(
-    scenario: ReadSignal<Scenario>,
-    preview_offset: ReadSignal<f32>,
-    selected_point: Signal<Option<TimeLinePoint>>,
-) -> Element {
+pub fn TimeLine(controller: SpriteEditController) -> Element {
+    let mut c0 = controller.clone();
+    let mut c1 = controller.clone();
+    let c2 = controller.clone();
+
     let mut offset = use_signal(|| -1_f32);
     let mut scale = use_signal(|| 50_f32);
     let mut svg_size = use_signal(|| (0_f32, 0_f32));
     let mut cursor_type = use_signal(|| "default".to_string());
-    let point_memo = use_memo(move || *selected_point.read());
+    let point_memo = use_memo(move || *c0.timeline_point_listener().read());
     let points: Store<Vec<TimeLinePoint>> = use_store(Vec::new);
 
     let build_view = move || {
@@ -71,12 +71,12 @@ pub fn TimeLine(
             },
             onmousedown: move |event| {
                 let point = find_point(event.as_ref(), &points.read());
-                selected_point.set(point);
+                c1.set_timeline_point(point);
             },
             svg {
                 id: "timeline_svg",
                 style: "height:100%;width:100%;",
-                for (index, a) in scenario.read().images.iter().enumerate() {
+                for (index, a) in c2.get_sprites_states().iter().enumerate() {
                     AnimationPath {
                         states: a.animation.states.clone(),
                         index,
@@ -85,7 +85,7 @@ pub fn TimeLine(
                     }
                 }
                 CurOffsetPath {
-                    cur_offset: *preview_offset.read(),
+                    cur_offset: controller.get_preview_offset(),
                     view: build_view(),
                 }
                 CurPointMark {
