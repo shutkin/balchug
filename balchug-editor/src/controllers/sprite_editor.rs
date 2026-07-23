@@ -152,7 +152,7 @@ impl SpriteEditController {
             self.state.set(Some(state.change_sprite_rect(new_rect, new_sprite_state)));
         }
     }
-    
+
     /*
     State Editor
      */
@@ -160,6 +160,57 @@ impl SpriteEditController {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = *self.state_memo.read() {
             engine.set_image_sprite_state(new_state, state.sprite_index, state.state_index);
+        }
+    }
+
+    pub fn add_new_sprite_state(&mut self, is_before: bool) {
+        if let Some(engine) = self.engine.borrow().as_ref()
+            && let Some(state) = *self.state_memo.read() {
+            let states = &self.get_sprites_states()[state.sprite_index].animation.states;
+            let new_state_index;
+            let mut new_state = state.original_sprite_state;
+            if is_before {
+                new_state_index = state.state_index;
+                if state.state_index == 0 {
+                    new_state.offset -= 1.0;
+                } else {
+                    new_state = Self::half_states(&new_state, &states[state.state_index - 1]);
+                }
+            } else {
+                new_state_index = state.state_index + 1;
+                if state.state_index == states.len() - 1 {
+                    new_state.offset += 1.0;
+                } else {
+                    new_state = Self::half_states(&new_state, &states[state.state_index + 1]);
+                }
+            }
+            engine.insert_image_sprite_state(new_state, state.sprite_index, new_state_index);
+            self.state.set(None);
+            self.timeline_point_signal.set(None);
+        }
+    }
+
+    pub fn remove_sprite_state(&mut self) {
+        if let Some(engine) = self.engine.borrow().as_ref()
+            && let Some(state) = *self.state_memo.read() {
+            engine.delete_image_sprite_state(state.sprite_index, state.state_index);
+            self.state.set(None);
+            self.timeline_point_signal.set(None);
+        }
+    }
+
+    fn half_states(state0: &SpriteState, state1: &SpriteState) -> SpriteState {
+        SpriteState {
+            offset: (state0.offset + state1.offset) * 0.5,
+            x: (state0.x + state1.x) * 0.5,
+            y: (state0.y + state1.y) * 0.5,
+            width: (state0.width + state1.width) * 0.5,
+            color: [
+                (state0.color[0] + state1.color[0]) * 0.5,
+                (state0.color[1] + state1.color[1]) * 0.5,
+                (state0.color[2] + state1.color[2]) * 0.5,
+                (state0.color[3] + state1.color[3]) * 0.5
+            ],
         }
     }
 }

@@ -90,7 +90,7 @@ pub fn build_scenario(items: &HashMap<usize, AtlasItem>, pictures: &[usize]) -> 
     });
     scenario.text_lines.push(TextLine {
         text: "Мотай вниз. Там самое интересное.".to_string(),
-        relative_height: 0.024,
+        relative_height: 0.032,
         animation: AnimationStates { states },
     });
 

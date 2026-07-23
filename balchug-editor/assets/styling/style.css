@@ -145,6 +145,11 @@ body {
     background-color: #45475a;
 }
 
+.btn-danger {
+    background-color: var(--accent-danger);
+    color: var(--text-main);
+}
+
 /* 16:9 Landscape Mobile Device Canvas Viewport Frame */
 .canvas-status {
     position: absolute;

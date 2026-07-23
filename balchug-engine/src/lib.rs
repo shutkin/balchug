@@ -140,6 +140,18 @@ impl BalchugEngine {
         scenario.images[object_index].animation.states[state_index] = new_state;
         self.context.force_rerender.set(true);
     }
+    
+    pub fn insert_image_sprite_state(&self, new_state: SpriteState, object_index: usize, state_index: usize) {
+        let scenario = &mut self.context.scenario.borrow_mut();
+        scenario.images[object_index].animation.states.insert(state_index, new_state);
+        self.context.force_rerender.set(true);
+    }
+    
+    pub fn delete_image_sprite_state(&self, object_index: usize, state_index: usize) {
+        let scenario = &mut self.context.scenario.borrow_mut();
+        scenario.images[object_index].animation.states.remove(state_index);
+        self.context.force_rerender.set(true);
+    }
 }
 
 fn rebuild_font(ctx: &AppContext, renderer: &GlRenderer) {

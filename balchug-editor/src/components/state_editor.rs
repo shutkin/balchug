@@ -1,13 +1,17 @@
 use dioxus::prelude::*;
 use balchug_common::sprite::SpriteState;
 use crate::controllers::sprite_editor::SpriteEditController;
+use crate::states::sprite_editor::SpriteEditorState;
 
 #[component]
 pub fn StateEditor(controller: SpriteEditController) -> Element {
     if let Some(se) = controller.get_cur_state() {
         let mut c0 = controller.clone();
         let mut c1 = controller.clone();
-        
+        let mut c2 = controller.clone();
+        let mut c3 = controller.clone();
+        let mut c4 = controller.clone();
+
         let mut apply_fn = move |values: Vec<(String, FormValue)>| {
             let mut state = SpriteState::default();
             for (name, value) in values {
@@ -48,79 +52,7 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                         event.prevent_default();
                         apply_fn(event.values());
                     },
-                    div {
-                        id: "state_props_row1",
-                        class: "form-row",
-                        div {
-                            id: "state_offset",
-                            class: "form-group",
-                            label {
-                                "Offset",
-                                input {
-                                    r#type: "number",
-                                    name: "offset",
-                                    value: "{round(se.sprite_state.offset)}",
-                                    step: "0.001",
-                                }
-                            }
-                        }
-                        div {
-                            id: "state_x",
-                            class: "form-group",
-                            label {
-                                "X",
-                                input {
-                                    r#type: "number",
-                                    name: "x",
-                                    value: "{round(se.sprite_state.x)}",
-                                    step: "0.001",
-                                }
-                            }
-                        }
-                        div {
-                            id: "state_y",
-                            class: "form-group",
-                            label {
-                                "Y",
-                                input {
-                                    r#type: "number",
-                                    name: "y",
-                                    value: "{round(se.sprite_state.y)}",
-                                    step: "0.001",
-                                }
-                            }
-                        }
-                    }
-                    div {
-                        id: "state_props_row2",
-                        class: "form-row",
-                        div {
-                            id: "state_width",
-                            class: "form-group",
-                            label {
-                                "Scale",
-                                input {
-                                    r#type: "number",
-                                    name: "scale",
-                                    value: "{round(se.sprite_state.width)}",
-                                    step: "0.001",
-                                }
-                            }
-                        }
-                        div {
-                            id: "state_alpha",
-                            class: "form-group",
-                            label {
-                                "Alpha",
-                                input {
-                                    r#type: "number",
-                                    name: "alpha",
-                                    value: "{round(se.sprite_state.color[3])}",
-                                    step: "0.001",
-                                }
-                            }
-                        }
-                    }
+                    StateStatsInputs {se},
                     div {
                         id: "state_props_btn_row",
                         class: "form-row",
@@ -139,12 +71,115 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                             },
                             "Cancel"
                         }
+                        button {
+                            id: "state_delete",
+                            class: "btn btn-danger",
+                            onclick: move |_| {
+                                c4.remove_sprite_state();
+                            },
+                            "Delete"
+                        }
+                        button {
+                            id: "state_add_before",
+                            class: "btn btn-secondary",
+                            onclick: move |_| {
+                                c2.add_new_sprite_state(true);
+                            },
+                            "Add Before"
+                        }
+                        button {
+                            id: "state_add_after",
+                            class: "btn btn-secondary",
+                            onclick: move |_| {
+                                c3.add_new_sprite_state(false);
+                            },
+                            "Add After"
+                        }
                     }
                 }
             }
         }
     } else {
         rsx! {}
+    }
+}
+
+#[component]
+fn StateStatsInputs(se: SpriteEditorState) -> Element {
+    rsx! {
+        div {
+            id: "state_props_row1",
+            class: "form-row",
+            div {
+                id: "state_offset",
+                class: "form-group",
+                label {
+                    "Offset",
+                    input {
+                        r#type: "number",
+                        name: "offset",
+                        value: "{round(se.sprite_state.offset)}",
+                        step: "0.001",
+                    }
+                }
+            }
+            div {
+                id: "state_x",
+                class: "form-group",
+                label {
+                    "X",
+                    input {
+                        r#type: "number",
+                        name: "x",
+                        value: "{round(se.sprite_state.x)}",
+                        step: "0.001",
+                    }
+                }
+            }
+            div {
+                id: "state_y",
+                class: "form-group",
+                label {
+                    "Y",
+                    input {
+                        r#type: "number",
+                        name: "y",
+                        value: "{round(se.sprite_state.y)}",
+                        step: "0.001",
+                    }
+                }
+            }
+        }
+        div {
+            id: "state_props_row2",
+            class: "form-row",
+            div {
+                id: "state_width",
+                class: "form-group",
+                label {
+                    "Scale",
+                    input {
+                        r#type: "number",
+                        name: "scale",
+                        value: "{round(se.sprite_state.width)}",
+                        step: "0.001",
+                    }
+                }
+            }
+            div {
+                id: "state_alpha",
+                class: "form-group",
+                label {
+                    "Alpha",
+                    input {
+                        r#type: "number",
+                        name: "alpha",
+                        value: "{round(se.sprite_state.color[3])}",
+                        step: "0.001",
+                    }
+                }
+            }
+        }
     }
 }
 

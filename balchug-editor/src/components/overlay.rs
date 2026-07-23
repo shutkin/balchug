@@ -97,24 +97,24 @@ fn modify_rect(start_rect: F32Rect, dx: f32, dy: f32, area: RectArea) -> F32Rect
         },
         RectArea::Left => F32Rect {
             x: start_rect.x + dx,
-            y: start_rect.y,
+            y: start_rect.y + 0.5 * dx * start_rect.height / start_rect.width,
             width: start_rect.width - dx,
             height: start_rect.height - dx * start_rect.height / start_rect.width,
         },
         RectArea::Right => F32Rect {
             x: start_rect.x,
-            y: start_rect.y,
+            y: start_rect.y - 0.5 * dx * start_rect.height / start_rect.width,
             width: start_rect.width + dx,
             height: start_rect.height + dx * start_rect.height / start_rect.width,
         },
         RectArea::Top => F32Rect {
-            x: start_rect.x,
+            x: start_rect.x + 0.5 * dy * start_rect.width / start_rect.height,
             y: start_rect.y + dy,
             width: start_rect.width - dy * start_rect.width / start_rect.height,
             height: start_rect.height - dy,
         },
         RectArea::Bottom => F32Rect {
-            x: start_rect.x,
+            x: start_rect.x - 0.5 * dy * start_rect.width / start_rect.height,
             y: start_rect.y,
             width: start_rect.width + dy * start_rect.width / start_rect.height,
             height: start_rect.height + dy,
