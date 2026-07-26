@@ -1,6 +1,5 @@
 use ab_glyph::{Font, FontRef, Glyph, ScaleFont};
 use std::collections::HashMap;
-use binpack2d::Dimension;
 use balchug_common::atlas::{FontData, FontGlyph};
 
 const PADDING: u16 = 4;
@@ -12,8 +11,8 @@ pub struct GlyphImage {
 }
 
 impl GlyphImage {
-    pub fn to_dimensions(&self) -> Dimension {
-        Dimension::new(self.width as i32, self.height as i32)
+    pub fn to_dimensions(&self) -> (i32, i32) {
+        (self.width as i32, self.height as i32)
     }
 }
 
@@ -25,7 +24,7 @@ pub struct GlyphData {
 }
 
 pub fn prepare_glyphs(letters: &str, font_data: &[u8], text_size: f32) -> Result<(FontData, Vec<GlyphImage>), Box<dyn std::error::Error>> {
-    let font = FontRef::try_from_slice(&font_data)?;
+    let font = FontRef::try_from_slice(font_data)?;
     let font_scaled = font.as_scaled(text_size);
 
     let mut glyphs = HashMap::new();
@@ -37,7 +36,7 @@ pub fn prepare_glyphs(letters: &str, font_data: &[u8], text_size: f32) -> Result
         let glyph_id = font.glyph_id(c);
         let glyph = glyph_id.with_scale(text_size);
         let h_advance = font_scaled.h_advance(glyph_id);
-        if let Some(sprite) = render_glyph(c, glyph, font.clone(), h_advance) {
+        if let Some(sprite) = render_glyph(glyph, font.clone(), h_advance) {
             glyphs.insert(c, FontGlyph {
                 h_advance: sprite.h_advance,
                 offset_x: sprite.offset_x,
@@ -59,7 +58,7 @@ pub fn prepare_glyphs(letters: &str, font_data: &[u8], text_size: f32) -> Result
     Ok((font, images))
 }
 
-fn render_glyph(c: char, glyph: Glyph, font: FontRef, h_advance: f32) -> Option<GlyphData> {
+fn render_glyph(glyph: Glyph, font: FontRef, h_advance: f32) -> Option<GlyphData> {
     let outlined = font.outline_glyph(glyph)?;
     let bounds = outlined.px_bounds();
     let width = bounds.width().ceil() as u16 + PADDING * 2;

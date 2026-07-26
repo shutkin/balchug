@@ -1,5 +1,6 @@
 use std::cell::Cell;
 use std::rc::Rc;
+use log::{error, info};
 use wasm_bindgen::JsValue;
 use web_sys::{HtmlImageElement, WebGl2RenderingContext as GL, WebGlProgram, WebGlShader, WebGlTexture};
 use balchug_common::sprite::Sprite;
@@ -110,6 +111,8 @@ impl GlRenderer {
         let canvas_size_loc = gl.get_uniform_location(&txt_program, "u_canvasSize");
         gl.uniform2f(canvas_size_loc.as_ref(), width, height);
 
+        info!("GL renderer initialized");
+
         Ok(GlRenderer {
             gl, program, txt_program, texture, font_texture,
             texture_size: Rc::new(Cell::new((0, 0))),
@@ -132,10 +135,14 @@ impl GlRenderer {
     pub fn set_texture(&self, img: &HtmlImageElement) {
         self.texture_size.replace((img.width(), img.height()));
         self.gl.bind_texture(GL::TEXTURE_2D, Some(&self.texture));
-        self.gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
+        if let Err(err) = self.gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
             GL::TEXTURE_2D, 0, GL::RGBA as i32, GL::RGBA, GL::UNSIGNED_BYTE, img
-        ).unwrap();
-        self.gl.generate_mipmap(GL::TEXTURE_2D);
+        ) {
+            error!("Failed to create texture: {:?}", err);
+        } else {
+            self.gl.generate_mipmap(GL::TEXTURE_2D);
+            info!("GL renderer texture created");
+        }
     }
 
     pub fn set_font_texture(&self, width: u32, height: u32, data: &[u8]) {

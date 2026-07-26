@@ -1,6 +1,8 @@
 pub mod sprite;
 pub mod atlas;
 pub mod scenario;
+pub mod atlas_builder;
+pub mod api;
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct F32Rect {

@@ -1,0 +1,15 @@
+[package]
+name = "balchug-back"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tokio = { version = "1.53", features = ["full"] }
+actix-web = "4.14"
+actix-cors = "0.7"
+log = "0.4"
+env_logger = "0.11"
+image = "0.25"
+webp = "0.3"
+rand = "0.10"
+balchug-common = { path = "../balchug-common" }

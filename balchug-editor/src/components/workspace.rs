@@ -6,15 +6,21 @@ use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
+use crate::components::images::{ImageUploader, ImagesList};
+use crate::controllers::api::API;
+use crate::controllers::images_controller::ImagesController;
 
 #[component]
-pub fn Workspace(controller: SpriteEditController) -> Element {
+pub fn Workspace(images_controller: ImagesController, edit_controller: SpriteEditController) -> Element {
     rsx! {
         main {
             id: "workspace_main",
             class: "workspace",
-            BalchugPreview {controller: controller.clone()},
-            Sidebar {controller: controller.clone()},
+            BalchugPreview {controller: edit_controller.clone()},
+            Sidebar {
+                edit_controller: edit_controller.clone(),
+                images_controller: images_controller.clone(),
+            },
         }
     }
 }
@@ -60,7 +66,9 @@ pub fn BalchugPreview(controller: SpriteEditController) -> Element {
 }
 
 #[component]
-pub fn Sidebar(controller: SpriteEditController) -> Element {
+pub fn Sidebar(images_controller: ImagesController, edit_controller: SpriteEditController) -> Element {
+    let mut cur_tab = use_signal(move || 0_u8);
+
     rsx! {
         aside {
             id: "sidebar",
@@ -69,22 +77,46 @@ pub fn Sidebar(controller: SpriteEditController) -> Element {
                 id: "sidebar_tabs",
                 class: "tab-navigation",
                 button {
-                    id: "sidebar_btn_timeline",
-                    class: "tab-btn active",
-                    "Time Line"
+                    id: "sidebar_btn_props",
+                    class: format!("tab-btn{}", if *cur_tab.read() == 0 {" active"} else {""}),
+                    onclick: move |_| {cur_tab.set(0);},
+                    "images"
                 }
                 button {
-                    id: "sidebar_btn_props",
-                    class: "tab-btn",
-                    "Properties"
+                    id: "sidebar_btn_timeline",
+                    class: format!("tab-btn{}", if *cur_tab.read() == 1 {" active"} else {""}),
+                    onclick: move |_| {cur_tab.set(1);},
+                    "timeline"
                 }
             }
-            div {
-                id: "sidebar_container",
-                class: "panel-box",
-                TimeLine {controller: controller.clone()}
-                StateEditor {controller: controller.clone()}
+            match *cur_tab.read() {
+                0 => rsx! {ImagesPanel {controller: images_controller.clone()}},
+                _ => rsx! {TimelinePanel {controller: edit_controller.clone()}},
             }
+        }
+    }
+}
+
+#[component]
+pub fn ImagesPanel(controller: ImagesController) -> Element {
+    rsx! {
+        div {
+            id: "sidebar_container_timeline",
+            class: "panel-box",
+            ImageUploader {controller: controller.clone()}
+            ImagesList {controller: controller.clone()}
+        }
+    }
+}
+
+#[component]
+pub fn TimelinePanel(controller: SpriteEditController) -> Element {
+    rsx! {
+        div {
+            id: "sidebar_container_timeline",
+            class: "panel-box",
+            TimeLine {controller: controller.clone()}
+            StateEditor {controller: controller.clone()}
         }
     }
 }

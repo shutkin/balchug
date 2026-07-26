@@ -1,12 +1,6 @@
 [application]
 
-[web.config]
-port = 3000
-
 [web.app]
-
-# HTML title tag content
-title = "balchug-editor"
 
 # include `assets` in web platform
 [web.resource]

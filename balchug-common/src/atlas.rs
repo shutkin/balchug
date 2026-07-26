@@ -1,6 +1,7 @@
 use std::collections::HashMap;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
 pub struct AtlasItem {
     pub id: usize,
     pub x: u32,
@@ -11,7 +12,7 @@ pub struct AtlasItem {
     pub origin_height: u32,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Serialize, Deserialize, Debug)]
 pub struct Atlas {
     pub width: u32,
     pub height: u32,

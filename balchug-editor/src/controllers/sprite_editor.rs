@@ -8,9 +8,6 @@ use balchug_common::atlas::AtlasItem;
 use balchug_common::F32Rect;
 use balchug_common::sprite::{SpriteAnimation, SpriteState};
 use crate::components::timeline::TimeLinePoint;
-use crate::constants::{build_atlas, build_scenario};
-
-static ASSETS_DIR: Asset = asset!("/assets");
 
 #[derive(Clone)]
 pub struct SpriteEditController {
@@ -28,22 +25,20 @@ impl PartialEq for SpriteEditController {
     }
 }
 
-impl Default for SpriteEditController {
-    fn default() -> Self {
+impl SpriteEditController {
+    pub fn new(engine: Rc<RefCell<Option<BalchugEngine>>>) -> Self {
         let state = Signal::new(Option::<SpriteEditorState>::None);
         let state_memo = use_memo(move || *state.read());
         Self {
             state,
             state_memo,
+            engine,
             preview_offset_listener: PreviewOffsetListener::default(),
             timeline_point_signal: Signal::new(None),
-            engine: Rc::new(RefCell::new(None)),
             canvas_rect: Rc::new(Cell::new(F32Rect::default())),
         }
     }
-}
-
-impl SpriteEditController {
+    
     fn get_scenario_state(&self, sprite_index: usize, state_index: usize) -> Option<(AtlasItem, SpriteState)> {
         if let Some(engine) = self.engine.borrow().as_ref() {
             let sprite = engine.get_scenario_images().get(sprite_index)?.clone();
@@ -56,12 +51,11 @@ impl SpriteEditController {
     }
 
     pub fn start(&self, window: Window, canvas: HtmlCanvasElement) {
-        let balchug_engine = start_engine(window, canvas, &ASSETS_DIR.to_string());
-        web_sys::console::log_1(&"Engine start".into());
+        let balchug_engine = start_engine(window, canvas);
         balchug_engine.set_offset_listener(Box::new(self.preview_offset_listener.clone()));
-        let atlas = build_atlas();
-        balchug_engine.set_scenario(build_scenario(&atlas.items, &[2, 1, 5, 7, 10, 6, 3, 8, 4, 9]));
-        balchug_engine.set_atlas(atlas);
+        //let atlas = build_atlas();
+        //balchug_engine.set_scenario(build_scenario(&atlas.items, &[2, 1, 5, 7, 10, 6, 3, 8, 4, 9]));
+        //balchug_engine.set_atlas(atlas);
         self.engine.replace(Some(balchug_engine));
     }
 

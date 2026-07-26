@@ -1,9 +1,11 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
+use std::task::Context;
+use log::{error, info};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2RenderingContext, Response, AddEventListenerOptions, WheelEvent, TouchEvent, MouseEvent};
+use web_sys::{Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2RenderingContext, Response, AddEventListenerOptions, WheelEvent, TouchEvent, MouseEvent, window};
 use balchug_common::atlas::{Atlas, AtlasItem, FontData};
 use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
@@ -77,7 +79,7 @@ impl BalchugEngine {
             let rect = parent.get_bounding_client_rect();
             let (width, height) = (rect.width() as f32 * self.pixel_ratio,
                                    rect.height() as f32 * self.pixel_ratio);
-            web_sys::console::log_1(&format!("Resizing canvas to {width}x{height}").into());
+            info!("Resizing canvas to {width}x{height}");
             let (width, height) = (width.round() as u32, height.round() as u32);
             self.canvas.set_width(width);
             self.canvas.set_height(height);
@@ -100,12 +102,17 @@ impl BalchugEngine {
         self.context.offset_listener.borrow_mut().replace(listener);
     }
 
-    pub fn set_atlas(&self, atlas: Atlas) {
+    pub fn set_atlas(&self, img_url: &str, atlas: Atlas) {
+        load_images_texture(&self.context, &self.renderer, img_url);
         self.context.atlas_items.replace(atlas.items);
     }
 
+    // &format!("{assets_url}/font.otf"
+    pub fn set_font(&self, img_url: &str) {
+        load_font(&self.context, &self.renderer, img_url)
+    }
+
     pub fn set_scenario(&self, scenario: Scenario) {
-        web_sys::console::log_1(&"Update scenario".into());
         self.context.scenario.replace(scenario);
         self.update();
     }
@@ -154,22 +161,6 @@ impl BalchugEngine {
     }
 }
 
-fn rebuild_font(ctx: &AppContext, renderer: &GlRenderer) {
-    let bytes = ctx.font_bytes.borrow();
-    let letters = scenario_letters(&ctx.scenario.borrow());
-    if !bytes.is_empty() && !letters.is_empty() {
-        let font_size = scenario_text_size(&ctx.scenario.borrow(), ctx.canvas_width.get());
-        web_sys::console::log_1(&format!("Font size: {font_size}").into());
-        if let Some(res) = build_font(&letters, &bytes, font_size) {
-            renderer.set_font_texture(res.atlas.width, res.atlas.height, &res.data);
-            ctx.font.replace(res.font_data);
-            ctx.font_atlas_items.replace(res.atlas.items);
-            ctx.txt_texture_ready.replace(true);
-            ctx.force_rerender.set(true);
-        }
-    }
-}
-
 fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     let now = instant::Instant::now();
     let elapsed = now.duration_since(ctx.last_frame.get()).as_secs_f32();
@@ -215,7 +206,9 @@ fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     }
 }
 
-pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &str) -> BalchugEngine {
+pub fn start_engine(window: Window, canvas: HtmlCanvasElement) -> BalchugEngine {
+    wasm_logger::init(wasm_logger::Config::default());
+
     let pixel_ratio = window.device_pixel_ratio().max(2.0);
 
     let gl = canvas.get_context("webgl2").unwrap().unwrap().dyn_into::<WebGl2RenderingContext>().unwrap();
@@ -235,44 +228,6 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
             }
         }
     };
-
-    let req = Request::new_with_str(&format!("{assets_folder}/georgia.otf")).unwrap();
-    let on_response = {
-        let ctx = ctx.clone();
-        let renderer = renderer.clone();
-        let on_body = {
-            Closure::wrap(Box::new(move |buf_value: JsValue| {
-                let bytes = js_sys::Uint8Array::new(&buf_value).to_vec();
-                web_sys::console::log_1(&format!("Load font {} bytes", bytes.len()).into());
-                ctx.font_bytes.replace(bytes);
-                rebuild_font(&ctx, &renderer);
-            }) as Box<dyn FnMut(JsValue)>)
-        };
-        Closure::wrap(Box::new(move |result: JsValue| {
-            let response: Response = result.dyn_into().unwrap();
-            if let Ok(promise) = response.array_buffer() {
-                let _ = promise.then(&on_body);
-            }
-        }) as Box<dyn FnMut(JsValue)>)
-    };
-    let _ = window.fetch_with_request(&req).then(&on_response);
-    on_response.forget();
-
-    let atlas_img = HtmlImageElement::new().unwrap();
-    atlas_img.set_src(&format!("{assets_folder}/atlas.webp"));
-    let on_load = {
-        let renderer = renderer.clone();
-        let img = atlas_img.clone();
-        let texture_ready = ctx.images_texture_ready.clone();
-        let force_rerender = ctx.force_rerender.clone();
-        Closure::wrap(Box::new(move || {
-            renderer.set_texture(&img);
-            texture_ready.replace(true);
-            force_rerender.set(true);
-        }) as Box<dyn FnMut()>)
-    };
-    atlas_img.set_onload(Some(on_load.as_ref().unchecked_ref()));
-    on_load.forget();
 
     let options = AddEventListenerOptions::new();
     options.set_passive(false); // Explicitly allow preventDefault()
@@ -404,11 +359,11 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
     *on_frame.borrow_mut() = Closure::wrap(Box::new(move || {
         render_clone();
         if let Err(err) = window_clone.request_animation_frame(on_frame_clone.borrow().as_ref().unchecked_ref()) {
-            web_sys::console::error_1(&format!("Request animation frame failed: {err:?}").into());
+            error!("Request animation frame failed: {err:?}");
         }
     }));
     if let Err(err) = window.request_animation_frame(on_frame.borrow().as_ref().unchecked_ref()) {
-        web_sys::console::error_1(&format!("Request first animation frame failed: {err:?}").into());
+        error!("Request first animation frame failed: {err:?}");
     }
 
     BalchugEngine {
@@ -416,5 +371,74 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, assets_folder: &s
         context: Rc::new(ctx),
         renderer: Rc::new(renderer),
         canvas
+    }
+}
+
+fn load_images_texture(ctx: &AppContext, renderer: &GlRenderer, img_url: &str) {
+    let atlas_img = HtmlImageElement::new().unwrap();
+    atlas_img.set_cross_origin(Some("anonymous"));
+    atlas_img.set_src(img_url);
+    ctx.images_texture_ready.set(false);
+    let on_load = {
+        let renderer = renderer.clone();
+        let img = atlas_img.clone();
+        let texture_ready = ctx.images_texture_ready.clone();
+        let force_rerender = ctx.force_rerender.clone();
+        Closure::wrap(Box::new(move || {
+            renderer.set_texture(&img);
+            texture_ready.replace(true);
+            force_rerender.set(true);
+        }) as Box<dyn FnMut()>)
+    };
+    atlas_img.set_onload(Some(on_load.as_ref().unchecked_ref()));
+    on_load.forget();
+}
+
+fn load_font(ctx: &AppContext, renderer: &GlRenderer, font_url: &str) {
+    match Request::new_with_str(font_url) {
+        Ok(req) => {
+            ctx.txt_texture_ready.set(false);
+            let on_response = {
+                let ctx = ctx.clone();
+                let renderer = renderer.clone();
+                let on_body = {
+                    Closure::wrap(Box::new(move |buf_value: JsValue| {
+                        let bytes = js_sys::Uint8Array::new(&buf_value).to_vec();
+                        info!("Load font {} bytes", bytes.len());
+                        ctx.font_bytes.replace(bytes);
+                        rebuild_font(&ctx, &renderer);
+                    }) as Box<dyn FnMut(JsValue)>)
+                };
+                Closure::wrap(Box::new(move |result: JsValue| {
+                    let response: Response = result.dyn_into().unwrap();
+                    if let Ok(promise) = response.array_buffer() {
+                        let _ = promise.then(&on_body);
+                    }
+                }) as Box<dyn FnMut(JsValue)>)
+            };
+            if let Some(window) = window() {
+                let _ = window.fetch_with_request(&req).then(&on_response);
+            }
+            on_response.forget();
+        }
+        Err(err) => {
+            error!("Error make font request: {err:?}");
+        }
+    }
+}
+
+fn rebuild_font(ctx: &AppContext, renderer: &GlRenderer) {
+    let bytes = ctx.font_bytes.borrow();
+    let letters = scenario_letters(&ctx.scenario.borrow());
+    if !bytes.is_empty() && !letters.is_empty() {
+        let font_size = scenario_text_size(&ctx.scenario.borrow(), ctx.canvas_width.get());
+        info!("Font size: {font_size}");
+        if let Some(res) = build_font(&letters, &bytes, font_size) {
+            renderer.set_font_texture(res.atlas.width, res.atlas.height, &res.data);
+            ctx.font.replace(res.font_data);
+            ctx.font_atlas_items.replace(res.atlas.items);
+            ctx.txt_texture_ready.replace(true);
+            ctx.force_rerender.set(true);
+        }
     }
 }

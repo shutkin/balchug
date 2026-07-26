@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [workspace]
-members = ["./balchug-common", "./balchug-engine", "./balchug-editor"]
+members = ["balchug-common", "balchug-engine", "balchug-editor", "balchug-back"]
 
 [dependencies]

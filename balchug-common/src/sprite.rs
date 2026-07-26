@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use crate::atlas::AtlasItem;
 
 #[derive(Copy, Clone)]
@@ -6,7 +7,7 @@ pub struct Sprite {
     pub atlas_item: AtlasItem,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct SpriteState {
     pub offset: f32,
     pub x: f32,
@@ -15,19 +16,19 @@ pub struct SpriteState {
     pub color: [f32; 4],
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct SpriteAnimation {
     pub sprite_id: usize,
     pub atlas_item_id: usize,
     pub animation: AnimationStates,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct AnimationStates {
     pub states: Vec<SpriteState>,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct TextLine {
     pub text: String,
     pub animation: AnimationStates,
