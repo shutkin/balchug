@@ -2,28 +2,28 @@ use dioxus::prelude::*;
 use crate::controllers::images_controller::ImagesController;
 
 #[component]
-pub fn ImageUploader(controller: ImagesController) -> Element {
+pub fn ImagesBank(controller: ImagesController) -> Element {
     rsx! {
-        div {
-            id: "image_uploader_body",
-            class: "panel-body",
-            label {
-                id: "image_uploader_label",
-                class: "file-dropzone",
-                input {
-                    id: "image_upload_input",
-                    style: "display:none;",
-                    r#type: "file",
-                    accept: "image/*",
-                    onchange: move |event| {
-                        let mut c = controller.clone();
-                        async move {
-                            c.handle_upload(event.files()).await;
-                        }
-                    }
+        section {
+            id: "images_bank_section",
+            class: "panel-card",
+            div {
+                id: "images_bank_header",
+                class: "panel-header",
+                h4 {
+                    "Image Bank"
                 }
-                span {
-                    "Upload Image"
+            }
+            div {
+                id: "images_bank_body",
+                class: "panel-body",
+                ImageUploader {controller: controller.clone()}
+                for (i, thumb_url) in controller.get_thumbs().iter().enumerate() {
+                    ImageAsset {
+                        controller: controller.clone(),
+                        id: i,
+                        url: thumb_url,
+                    }
                 }
             }
         }
@@ -31,19 +31,52 @@ pub fn ImageUploader(controller: ImagesController) -> Element {
 }
 
 #[component]
-pub fn ImagesList(controller: ImagesController) -> Element {
+fn ImageUploader(controller: ImagesController) -> Element {
     rsx! {
-        div {
-            id: "image_list_container",
-            class: "asset-item",
-            for (i, thumb_url) in controller.get_thumbs().iter().enumerate() {
-                div {
-                    id: format!("thumb_{i}"),
-                    class: "asset-preview",
-                    img {
-                        src: thumb_url,
+        label {
+            id: "image_uploader_label",
+            class: "file-dropzone",
+            input {
+                id: "image_upload_input",
+                style: "display:none;",
+                r#type: "file",
+                accept: "image/*",
+                onchange: move |event| {
+                    let mut c = controller.clone();
+                    async move {
+                        c.handle_upload(event.files()).await;
                     }
                 }
+            }
+            span {
+                "Upload Image"
+            }
+        }
+    }
+}
+
+#[component]
+fn ImageAsset(controller: ImagesController, id: usize, url: String) -> Element {
+    let asset_name = format!("{id}");
+    rsx! {
+        div {
+            id: format!("image_asset_{id}"),
+            class: "asset-item",
+            img {
+                class: "asset-preview",
+                src: url,
+            }
+            span {
+                class: "asset-name",
+                "{asset_name}"
+            }
+            button {
+                id: format!("image_{id}_put"),
+                class: "btn btn-secondary",
+                onclick: move |_| {
+                    controller.put_image(id, 1.0);
+                },
+                "Put"
             }
         }
     }

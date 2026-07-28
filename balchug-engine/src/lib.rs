@@ -102,12 +102,15 @@ impl BalchugEngine {
         self.context.offset_listener.borrow_mut().replace(listener);
     }
 
+    pub fn get_offset(&self) -> f32 {
+        self.context.scroll.borrow().get_value() / self.context.canvas_width.get()
+    }
+
     pub fn set_atlas(&self, img_url: &str, atlas: Atlas) {
         load_images_texture(&self.context, &self.renderer, img_url);
         self.context.atlas_items.replace(atlas.items);
     }
 
-    // &format!("{assets_url}/font.otf"
     pub fn set_font(&self, img_url: &str) {
         load_font(&self.context, &self.renderer, img_url)
     }
@@ -117,8 +120,17 @@ impl BalchugEngine {
         self.update();
     }
 
-    pub fn get_scenario_images(&self) -> Vec<SpriteAnimation> {
-        self.context.scenario.borrow().images.clone()
+    pub fn get_scenario_images_states(&self, object_index: Option<usize>) -> Vec<SpriteAnimation> {
+        if let Some(index) = object_index {
+            self.context.scenario.borrow().images.get(index).cloned()
+                .into_iter().collect()
+        } else {
+            self.context.scenario.borrow().images.clone()
+        }
+    }
+
+    pub fn interpolate_state(states: &[SpriteState], offset: f32) -> Option<SpriteState> {
+        interpolate_state(states, offset)
     }
     
     pub fn get_atlas_item(&self, id: usize) -> Option<AtlasItem> {
@@ -142,21 +154,21 @@ impl BalchugEngine {
         self.context.force_rerender.set(true);
     }
 
-    pub fn set_image_sprite_state(&self, new_state: SpriteState, object_index: usize, state_index: usize) {
+    pub fn set_image_sprite_states(&self, object_index: usize, states: Vec<SpriteState>) {
         let scenario = &mut self.context.scenario.borrow_mut();
-        scenario.images[object_index].animation.states[state_index] = new_state;
+        scenario.images[object_index].states = states;
         self.context.force_rerender.set(true);
     }
     
     pub fn insert_image_sprite_state(&self, new_state: SpriteState, object_index: usize, state_index: usize) {
         let scenario = &mut self.context.scenario.borrow_mut();
-        scenario.images[object_index].animation.states.insert(state_index, new_state);
+        scenario.images[object_index].states.insert(state_index, new_state);
         self.context.force_rerender.set(true);
     }
     
     pub fn delete_image_sprite_state(&self, object_index: usize, state_index: usize) {
         let scenario = &mut self.context.scenario.borrow_mut();
-        scenario.images[object_index].animation.states.remove(state_index);
+        scenario.images[object_index].states.remove(state_index);
         self.context.force_rerender.set(true);
     }
 }
@@ -172,7 +184,6 @@ fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     if !updated && !ctx.force_rerender.get() {
         return (Vec::new(), Vec::new());
     }
-    ctx.force_rerender.set(false);
     if let Some(listener) = ctx.offset_listener.borrow_mut().as_mut() {
         listener.offset_change(scaled_offset)
     }
@@ -180,7 +191,7 @@ fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     let (mut sprites, mut text_sprites) = (Vec::new(), Vec::new());
 
     for image_animation in &scenario.images {
-        if let Some(cur_state) = interpolate_state(&image_animation.animation, scaled_offset) && cur_state.color[3] > 0.01 {
+        if let Some(cur_state) = interpolate_state(&image_animation.states, scaled_offset) && cur_state.color[3] > 0.01 {
             sprites.push(Sprite {
                 state: scale_sprite_state(&cur_state, width),
                 atlas_item: *ctx.atlas_items.borrow().get(&image_animation.atlas_item_id).unwrap(),
@@ -223,8 +234,9 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement) -> BalchugEngine 
         let renderer = renderer.clone();
         move || {
             let (sprites, text_sprites) = animate_scene(&ctx);
-            if !sprites.is_empty() || !text_sprites.is_empty() {
+            if !sprites.is_empty() || !text_sprites.is_empty() || ctx.force_rerender.get() {
                 renderer.render(&sprites, &text_sprites);
+                ctx.force_rerender.set(false);
             }
         }
     };

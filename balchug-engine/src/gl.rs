@@ -141,7 +141,7 @@ impl GlRenderer {
             error!("Failed to create texture: {:?}", err);
         } else {
             self.gl.generate_mipmap(GL::TEXTURE_2D);
-            info!("GL renderer texture created");
+            info!("Texture {}x{} created", img.width(), img.height());
         }
     }
 

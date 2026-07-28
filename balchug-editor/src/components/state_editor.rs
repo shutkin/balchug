@@ -52,7 +52,7 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                         event.prevent_default();
                         apply_fn(event.values());
                     },
-                    StateStatsInputs {se},
+                    StateStatsInputs {se: se.clone()},
                     div {
                         id: "state_props_btn_row",
                         class: "form-row",

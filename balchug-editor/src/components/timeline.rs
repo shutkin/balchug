@@ -13,7 +13,7 @@ struct TimeLineView {
     height: f32,
 }
 
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct TimeLinePoint {
     pub sprite_index: usize,
     pub state_index: usize,
@@ -21,9 +21,15 @@ pub struct TimeLinePoint {
     svg_y: f32,
 }
 
+#[derive(Clone, PartialEq)]
+pub struct TimeLinePoints {
+    pub sprite_index: usize,
+    pub states_indices: Vec<usize>,
+}
+
 #[component]
 pub fn TimeLine(controller: SpriteEditController) -> Element {
-    let mut c0 = controller.clone();
+    let c0 = controller.clone();
     let mut c1 = controller.clone();
     let c2 = controller.clone();
 
@@ -31,8 +37,8 @@ pub fn TimeLine(controller: SpriteEditController) -> Element {
     let mut scale = use_signal(|| 50_f32);
     let mut svg_size = use_signal(|| (0_f32, 0_f32));
     let mut cursor_type = use_signal(|| "default".to_string());
-    let point_memo = use_memo(move || *c0.timeline_point_listener().read());
-    let points: Store<Vec<TimeLinePoint>> = use_store(Vec::new);
+    let selected_points_memo = use_memo(move || c0.get_selected_points());
+    let points_store = Store::new(Vec::<TimeLinePoint>::default());
 
     let build_view = move || {
         let size = svg_size.read();
@@ -63,14 +69,14 @@ pub fn TimeLine(controller: SpriteEditController) -> Element {
                 }
             },
             onmousemove: move |event| {
-                if find_point(event.as_ref(), &points.read()).is_some() {
+                if find_point(event.as_ref(), &points_store.read()).is_some() {
                     cursor_type.set("pointer".to_string());
                 } else {
                     cursor_type.set("default".to_string());
                 }
             },
             onmousedown: move |event| {
-                let point = find_point(event.as_ref(), &points.read());
+                let point = find_point(event.as_ref(), &points_store.read());
                 c1.set_timeline_point(point);
             },
             svg {
@@ -78,10 +84,10 @@ pub fn TimeLine(controller: SpriteEditController) -> Element {
                 style: "height:100%;width:100%;",
                 for (index, a) in c2.get_sprites_states().iter().enumerate() {
                     AnimationPath {
-                        states: a.animation.states.clone(),
+                        states: a.states.clone(),
                         index,
                         view: build_view(),
-                        points,
+                        points: points_store,
                     }
                 }
                 CurOffsetPath {
@@ -89,7 +95,8 @@ pub fn TimeLine(controller: SpriteEditController) -> Element {
                     view: build_view(),
                 }
                 CurPointMark {
-                    point_memo,
+                    selected_points_memo,
+                    points_store,
                 }
             }
         }
@@ -145,14 +152,18 @@ fn AnimationPath(states: Vec<SpriteState>, index: usize, view: TimeLineView, poi
 }
 
 #[component]
-fn CurPointMark(point_memo: Memo<Option<TimeLinePoint>>) -> Element {
-    if let Some(point) = point_memo.read().as_ref() {
+fn CurPointMark(selected_points_memo: Memo<Option<TimeLinePoints>>, points_store: Store<Vec<TimeLinePoint>>) -> Element {
+    if let Some(selected_points) = selected_points_memo.read().as_ref()
+        && !selected_points.states_indices.is_empty() {
+        let sprite_index = selected_points.sprite_index;
         rsx! {
-            path {
-                fill: "none",
-                stroke: "var(--accent-purple)",
-                stroke_width: "5",
-                d: build_mark_d(point),
+            for state_index in selected_points.states_indices.iter() {
+                path {
+                    fill: "none",
+                    stroke: "var(--accent-purple)",
+                    stroke_width: "5",
+                    d: build_mark_d(sprite_index, *state_index, points_store),
+                }
             }
         }
     } else {
@@ -171,8 +182,13 @@ fn CurOffsetPath(cur_offset: f32, view: TimeLineView) -> Element {
     }
 }
 
-fn build_mark_d(cur_point: &TimeLinePoint) -> String {
-    format!("M{},{} l5,-5 l5,5 l-5,5 l-5,-5 z", cur_point.svg_x as i32 - 5, cur_point.svg_y as i32)
+fn build_mark_d(sprite_index: usize, state_index: usize, points: Store<Vec<TimeLinePoint>>) -> String {
+    if let Some(cur_point) = points.read().iter()
+        .find(|p| sprite_index == p.sprite_index && state_index == p.state_index).copied() {
+        format!("M{},{} l5,-5 l5,5 l-5,5 l-5,-5 z", cur_point.svg_x as i32 - 5, cur_point.svg_y as i32)
+    } else {
+        String::new()
+    }
 }
 
 fn build_offset_d(offset: f32, view: TimeLineView) -> String {

@@ -25,10 +25,11 @@ pub fn PreviewOverlay(controller: SpriteEditController) -> Element {
     let c1 = controller.clone();
     let c2 = controller.clone();
 
-    let mut cursor_type = use_signal(move || "default");
-    let mut drag_rect_area = use_signal(move || RectArea::Outside);
-    let mut start_drag_rect = use_signal(F32Rect::default);
-    let mut start_drag_coordinates: Signal<Option<ElementPoint>> = use_signal(move || None);
+    let mut cursor_type = use_signal(|| "default");
+    let mut drag_rect_area = use_signal(|| RectArea::Outside);
+    let mut start_drag_rect = use_store(F32Rect::default);
+    let mut start_drag_offset = use_store(|| 0_f32);
+    let mut start_drag_coordinates = use_store(|| Option::<ElementPoint>::None);
 
     rsx! {
         div {
@@ -41,9 +42,14 @@ pub fn PreviewOverlay(controller: SpriteEditController) -> Element {
                         let coordinates = event.element_coordinates();
                         let dx = (coordinates.x - start_coordinates.x) as f32;
                         let dy = (coordinates.y - start_coordinates.y) as f32;
-                        let start_rect = *start_drag_rect.read();
-                        let new_rect = modify_rect(start_rect, dx, dy, *drag_rect_area.read());
-                        c0.set_sprite_rect(new_rect);
+                        let area = *drag_rect_area.read();
+                        if matches!(area, RectArea::Outside) {
+                            c0.drag_offset(*start_drag_offset.read(), dy);
+                        } else {
+                            let start_rect = *start_drag_rect.read();
+                            let new_rect = modify_rect(start_rect, dx, dy, area);
+                            c0.set_sprite_rect(new_rect);
+                        }
                     } else {
                         let coordinates = event.element_coordinates();
                         let cursor = match check_rect_area(state.rect, coordinates) {
@@ -61,10 +67,9 @@ pub fn PreviewOverlay(controller: SpriteEditController) -> Element {
                     let coordinates = event.element_coordinates();
                     let area = check_rect_area(state.rect, coordinates);
                     drag_rect_area.set(area);
-                    if !matches!(area, RectArea::Outside) {
-                        start_drag_rect.set(state.rect);
-                        start_drag_coordinates.set(Some(coordinates));
-                    }
+                    start_drag_rect.set(state.rect);
+                    start_drag_offset.set(state.sprite_state.offset);
+                    start_drag_coordinates.set(Some(coordinates));
                 }
             },
             onmouseup: move |_: Event<MouseData>| {

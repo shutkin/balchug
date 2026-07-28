@@ -6,14 +6,14 @@ use crate::components::workspace::Workspace;
 use crate::controllers::api::API;
 use crate::controllers::images_controller::ImagesController;
 use crate::controllers::sprite_editor::SpriteEditController;
+use crate::states::project_state::ProjectState;
 
 mod components;
-mod constants;
 mod states;
 mod controllers;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
-const MAIN_CSS: Asset = asset!("/assets/styling/style.css");
+const MAIN_CSS: Asset = asset!("/assets/style.css");
 
 fn main() {
     launch(App);
@@ -42,9 +42,11 @@ fn App() -> Element {
             }
         }
     });
+    
+    let project_state = Rc::new(RefCell::new(ProjectState::new()));
 
-    let edit_controller = SpriteEditController::new(engine.clone());
-    let images_controller = ImagesController::new(api.clone(), engine.clone());
+    let edit_controller = SpriteEditController::new(engine.clone(), project_state.clone());
+    let images_controller = ImagesController::new(api.clone(), engine.clone(), project_state.clone());
 
     rsx! {
         Title { "Balchug Editor" }

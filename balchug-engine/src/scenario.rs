@@ -4,7 +4,7 @@ use balchug_common::scenario::Scenario;
 pub fn scenario_max_offset(scenario: &Scenario) -> f32 {
     let mut max_offset = 0.0;
     for sprite in &scenario.images {
-        sprite.animation.states.iter().for_each(|animation| if animation.offset > max_offset {
+        sprite.states.iter().for_each(|animation| if animation.offset > max_offset {
             max_offset = animation.offset;
         });
     }

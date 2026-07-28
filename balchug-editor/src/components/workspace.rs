@@ -6,8 +6,7 @@ use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
-use crate::components::images::{ImageUploader, ImagesList};
-use crate::controllers::api::API;
+use crate::components::images::ImagesBank;
 use crate::controllers::images_controller::ImagesController;
 
 #[component]
@@ -80,17 +79,17 @@ pub fn Sidebar(images_controller: ImagesController, edit_controller: SpriteEditC
                     id: "sidebar_btn_props",
                     class: format!("tab-btn{}", if *cur_tab.read() == 0 {" active"} else {""}),
                     onclick: move |_| {cur_tab.set(0);},
-                    "images"
+                    "Resources"
                 }
                 button {
                     id: "sidebar_btn_timeline",
                     class: format!("tab-btn{}", if *cur_tab.read() == 1 {" active"} else {""}),
                     onclick: move |_| {cur_tab.set(1);},
-                    "timeline"
+                    "Timeline"
                 }
             }
             match *cur_tab.read() {
-                0 => rsx! {ImagesPanel {controller: images_controller.clone()}},
+                0 => rsx! {ResourcesPanel {controller: images_controller.clone()}},
                 _ => rsx! {TimelinePanel {controller: edit_controller.clone()}},
             }
         }
@@ -98,13 +97,12 @@ pub fn Sidebar(images_controller: ImagesController, edit_controller: SpriteEditC
 }
 
 #[component]
-pub fn ImagesPanel(controller: ImagesController) -> Element {
+pub fn ResourcesPanel(controller: ImagesController) -> Element {
     rsx! {
         div {
             id: "sidebar_container_timeline",
             class: "panel-box",
-            ImageUploader {controller: controller.clone()}
-            ImagesList {controller: controller.clone()}
+            ImagesBank {controller: controller.clone()}
         }
     }
 }
