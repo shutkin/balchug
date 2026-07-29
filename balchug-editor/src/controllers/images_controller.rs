@@ -61,19 +61,29 @@ impl ImagesController {
             let cur_offset = engine.get_offset();
             let aspect_ratio = *self.project_state.borrow().aspect_ratio.read();
 
-            let start_offset = (cur_offset - 0.5 * parallax_factor / aspect_ratio).max(0.0);
+            let item_proportion = engine.get_atlas_item(image_id)
+                .map(|item| item.origin_width as f32 / item.origin_height as f32)
+                .unwrap_or(1.0);
+
+            let start_y = 1.0 / aspect_ratio;
+            let end_y = -1.0 / item_proportion;
+            let start_offset = cur_offset - (start_y - end_y) * 0.5 * parallax_factor;
+            let correction = if start_offset < 0.0 {-start_offset} else {0.0};
+            let start_y = start_y - correction / parallax_factor;
+            let start_offset = start_offset + correction;
+            let end_offset = start_offset + (start_y - end_y) * parallax_factor;
 
             let state_zero = SpriteState {
                 offset: start_offset,
                 x: 0.0,
-                y: 1.0 / aspect_ratio,
+                y: start_y,
                 width: 1.0,
                 color: [0.0, 0.0, 0.0, 1.0],
             };
             let state_one = SpriteState {
-                offset: start_offset + parallax_factor / aspect_ratio,
+                offset: end_offset,
                 x: 0.0,
-                y: 0.0,
+                y: end_y,
                 width: 1.0,
                 color: [0.0, 0.0, 0.0, 1.0],
             };

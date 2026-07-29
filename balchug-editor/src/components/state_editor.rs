@@ -11,6 +11,7 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
         let mut c2 = controller.clone();
         let mut c3 = controller.clone();
         let mut c4 = controller.clone();
+        let mut c5 = controller.clone();
 
         let mut apply_fn = move |values: Vec<(String, FormValue)>| {
             let mut state = SpriteState::default();
@@ -52,6 +53,22 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                         event.prevent_default();
                         apply_fn(event.values());
                     },
+                    if se.timeline_points.states_indices.len() > 1 {
+                        div {
+                            id: "state_group_row",
+                            class: "form-row",
+                            label {
+                                "Adjust Scroll"
+                            }
+                            input {
+                                id: "state_group_adjust",
+                                r#type: "checkbox",
+                                onchange: move |d| {
+                                    c5.set_scroll_adjust(d.checked());
+                                }
+                            }
+                        }
+                    }
                     StateStatsInputs {se: se.clone()},
                     div {
                         id: "state_props_btn_row",
@@ -75,15 +92,18 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                             id: "state_delete",
                             class: "btn btn-danger",
                             onclick: move |_| {
-                                c4.remove_sprite_state();
+                                c2.remove_sprite_state();
                             },
                             "Delete"
+                        }
+                        div {
+                            class: "vert-separator",
                         }
                         button {
                             id: "state_add_before",
                             class: "btn btn-secondary",
                             onclick: move |_| {
-                                c2.add_new_sprite_state(true);
+                                c3.add_new_sprite_state(true);
                             },
                             "Add Before"
                         }
@@ -91,7 +111,7 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                             id: "state_add_after",
                             class: "btn btn-secondary",
                             onclick: move |_| {
-                                c3.add_new_sprite_state(false);
+                                c4.add_new_sprite_state(false);
                             },
                             "Add After"
                         }

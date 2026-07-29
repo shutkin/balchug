@@ -134,6 +134,7 @@ impl SpriteEditController {
             sprite_state,
             original_sprite_state: sprite_state,
             rect,
+            scroll_adjust: false,
         }
     }
 
@@ -189,20 +190,61 @@ impl SpriteEditController {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().cloned()
             && let Some(mut sprite) = engine.get_scenario_images_states(Some(state.timeline_points.sprite_index)).first().cloned()
-            && let Some(cur_state) = BalchugEngine::interpolate_state(&sprite.states, state.sprite_state.offset) {
+            && let Some(sprite_state) = BalchugEngine::interpolate_state(&sprite.states, state.sprite_state.offset) {
             let canvas_rect = self.canvas_rect.get();
             let new_sprite_state = SpriteState {
-                offset: cur_state.offset,
+                offset: sprite_state.offset,
                 x: (new_rect.x - canvas_rect.x) / canvas_rect.width,
                 y: (new_rect.y - canvas_rect.y) / canvas_rect.width,
                 width: new_rect.width / canvas_rect.width,
-                color: cur_state.color,
+                color: sprite_state.color,
             };
             Self::apply_states_change(&state.timeline_points, &mut sprite.states,
                                       new_sprite_state, state.parallax_factor);
+
+            if state.scroll_adjust && state.timeline_points.states_indices.len() > 1
+                && let Some(atlas_item) = engine.get_atlas_item(sprite.atlas_item_id) {
+                let first_index = state.timeline_points.states_indices[0];
+                let last_index = state.timeline_points.states_indices[state.timeline_points.states_indices.len() - 1];
+                let (first_state, last_state) = Self::scroll_adjust(
+                    new_sprite_state,
+                    1.0,
+                    canvas_rect.width / canvas_rect.height,
+                    atlas_item.origin_width as f32 / atlas_item.origin_height as f32);
+                sprite.states[first_index] = first_state;
+                sprite.states[last_index] = last_state;
+            }
+
             engine.set_image_sprite_states(state.timeline_points.sprite_index, sprite.states);
             self.state.set(Some(state.change_sprite_rect(new_rect, new_sprite_state)));
         }
+    }
+
+    fn scroll_adjust(cur_state: SpriteState, parallax_factor: f32, aspect_ratio: f32, item_proportion: f32) -> (SpriteState, SpriteState) {
+        let end_y = -cur_state.width / item_proportion;
+        let end_offset = cur_state.offset + (cur_state.y - end_y) * parallax_factor;
+        let mut start_y = 1.0 / aspect_ratio;
+        let mut start_offset = cur_state.offset - (start_y - cur_state.y) * parallax_factor;
+        if start_offset < 0.0 {
+            let f = cur_state.offset / (cur_state.offset - start_offset);
+            start_y = cur_state.y + f * (start_y - cur_state.y) / parallax_factor;
+            start_offset = 0.0;
+        }
+        let first_state = SpriteState {
+            offset: start_offset,
+            x: cur_state.x,
+            y: start_y,
+            width: cur_state.width,
+            color: cur_state.color,
+        };
+        let last_state = SpriteState {
+            offset: end_offset,
+            x: cur_state.x,
+            y: end_y,
+            width: cur_state.width,
+            color: cur_state.color,
+        };
+        (first_state, last_state)
     }
 
     fn apply_states_change(
@@ -213,7 +255,7 @@ impl SpriteEditController {
     ) {
         for &index in &points.states_indices {
             let state = states[index];
-            let dy = (new_state.offset - state.offset) * parallax_factor;
+            let dy = (new_state.offset - state.offset) / parallax_factor;
             let modified_state = SpriteState {
                 offset: state.offset,
                 x: new_state.x,
@@ -240,6 +282,13 @@ impl SpriteEditController {
                                           new_state, state.parallax_factor);
             }
             engine.set_image_sprite_states(state.timeline_points.sprite_index, sprite.states);
+        }
+    }
+
+    pub fn set_scroll_adjust(&mut self, adjust: bool) {
+        if let Some(mut state) = self.state_memo.read().cloned() {
+            state.scroll_adjust = adjust;
+            self.state.set(Some(state));
         }
     }
 

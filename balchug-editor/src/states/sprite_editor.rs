@@ -9,6 +9,7 @@ pub struct SpriteEditorState {
     pub rect: F32Rect,
     pub sprite_state: SpriteState,
     pub original_sprite_state: SpriteState,
+    pub scroll_adjust: bool,
 }
 
 impl SpriteEditorState {
@@ -19,6 +20,7 @@ impl SpriteEditorState {
             rect,
             sprite_state,
             original_sprite_state: self.original_sprite_state,
+            scroll_adjust: self.scroll_adjust,
         }
     }
 }
