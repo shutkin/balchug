@@ -6,11 +6,11 @@ use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
-use crate::components::images::ImagesBank;
-use crate::controllers::images_controller::ImagesController;
+use crate::components::images::{ImagesBank, TextLine};
+use crate::controllers::resources::ResourcesController;
 
 #[component]
-pub fn Workspace(images_controller: ImagesController, edit_controller: SpriteEditController) -> Element {
+pub fn Workspace(images_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
     rsx! {
         main {
             id: "workspace_main",
@@ -65,7 +65,7 @@ pub fn BalchugPreview(controller: SpriteEditController) -> Element {
 }
 
 #[component]
-pub fn Sidebar(images_controller: ImagesController, edit_controller: SpriteEditController) -> Element {
+pub fn Sidebar(images_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
     let mut cur_tab = use_signal(move || 0_u8);
 
     rsx! {
@@ -97,12 +97,13 @@ pub fn Sidebar(images_controller: ImagesController, edit_controller: SpriteEditC
 }
 
 #[component]
-pub fn ResourcesPanel(controller: ImagesController) -> Element {
+pub fn ResourcesPanel(controller: ResourcesController) -> Element {
     rsx! {
         div {
             id: "sidebar_container_timeline",
             class: "panel-box",
             ImagesBank {controller: controller.clone()}
+            TextLine {controller: controller.clone()}
         }
     }
 }

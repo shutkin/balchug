@@ -23,7 +23,7 @@ pub struct SpriteAnimation {
     pub states: Vec<SpriteState>,
 }
 
-#[derive(Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct TextLine {
     pub text: String,
     pub relative_height: f32,

@@ -4,7 +4,7 @@ use dioxus::prelude::*;
 use balchug_engine::BalchugEngine;
 use crate::components::workspace::Workspace;
 use crate::controllers::api::API;
-use crate::controllers::images_controller::ImagesController;
+use crate::controllers::resources::ResourcesController;
 use crate::controllers::sprite_editor::SpriteEditController;
 use crate::states::project_state::ProjectState;
 
@@ -46,7 +46,7 @@ fn App() -> Element {
     let project_state = Rc::new(RefCell::new(ProjectState::new()));
 
     let edit_controller = SpriteEditController::new(engine.clone(), project_state.clone());
-    let images_controller = ImagesController::new(api.clone(), engine.clone(), project_state.clone());
+    let images_controller = ResourcesController::new(api.clone(), engine.clone(), project_state.clone());
 
     rsx! {
         Title { "Balchug Editor" }

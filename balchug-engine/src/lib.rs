@@ -1,5 +1,6 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::rc::Rc;
 use std::task::Context;
 use log::{error, info};
@@ -9,7 +10,7 @@ use web_sys::{Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2Render
 use balchug_common::atlas::{Atlas, AtlasItem, FontData};
 use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
-use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteState};
+use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteState, TextLine};
 use crate::font::font_builder::build_font;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
@@ -115,7 +116,14 @@ impl BalchugEngine {
         load_font(&self.context, &self.renderer, img_url)
     }
 
-    pub fn set_scenario(&self, scenario: Scenario) {
+    pub fn set_scenario(&self, images: Option<Vec<SpriteAnimation>>, text_lines: Option<Vec<TextLine>>) {
+        let mut scenario = self.context.scenario.borrow().clone();
+        if let Some(images) = images {
+            scenario.images = images;
+        }
+        if let Some(text_lines) = text_lines {
+            scenario.text_lines = text_lines;
+        }
         self.context.scenario.replace(scenario);
         self.update();
     }
@@ -126,6 +134,15 @@ impl BalchugEngine {
                 .into_iter().collect()
         } else {
             self.context.scenario.borrow().images.clone()
+        }
+    }
+
+    pub fn get_scenario_text_lines(&self, object_index: Option<usize>) -> Vec<TextLine> {
+        if let Some(index) = object_index {
+            self.context.scenario.borrow().text_lines.get(index).cloned()
+                .into_iter().collect()
+        } else {
+            self.context.scenario.borrow().text_lines.clone()
         }
     }
 
@@ -157,18 +174,9 @@ impl BalchugEngine {
     pub fn set_image_sprite_states(&self, object_index: usize, states: Vec<SpriteState>) {
         let scenario = &mut self.context.scenario.borrow_mut();
         scenario.images[object_index].states = states;
-        self.context.force_rerender.set(true);
-    }
-    
-    pub fn insert_image_sprite_state(&self, new_state: SpriteState, object_index: usize, state_index: usize) {
-        let scenario = &mut self.context.scenario.borrow_mut();
-        scenario.images[object_index].states.insert(state_index, new_state);
-        self.context.force_rerender.set(true);
-    }
-    
-    pub fn delete_image_sprite_state(&self, object_index: usize, state_index: usize) {
-        let scenario = &mut self.context.scenario.borrow_mut();
-        scenario.images[object_index].states.remove(state_index);
+        let width = self.context.canvas_width.get();
+        let max_scroll = scenario_max_offset(scenario) * width;
+        self.context.scroll.borrow_mut().set_limit_up(max_scroll);
         self.context.force_rerender.set(true);
     }
 }
