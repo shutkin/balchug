@@ -10,8 +10,6 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
         let mut c1 = controller.clone();
         let mut c2 = controller.clone();
         let mut c3 = controller.clone();
-        let mut c4 = controller.clone();
-        let mut c5 = controller.clone();
 
         let mut apply_fn = move |values: Vec<(String, FormValue)>| {
             let mut state = SpriteState::default();
@@ -53,22 +51,6 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                         event.prevent_default();
                         apply_fn(event.values());
                     },
-                    if se.timeline_points.states_indices.len() > 1 {
-                        div {
-                            id: "state_group_row",
-                            class: "form-row",
-                            label {
-                                "Adjust Scroll"
-                            }
-                            input {
-                                id: "state_group_adjust",
-                                r#type: "checkbox",
-                                onchange: move |d| {
-                                    c5.set_scroll_adjust(d.checked());
-                                }
-                            }
-                        }
-                    }
                     StateStatsInputs {se: se.clone()},
                     div {
                         id: "state_props_btn_row",
@@ -88,32 +70,28 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                             },
                             "Cancel"
                         }
-                        button {
-                            id: "state_delete",
-                            class: "btn btn-danger",
-                            onclick: move |_| {
-                                c2.remove_sprite_state();
-                            },
-                            "Delete"
-                        }
                         div {
                             class: "vert-separator",
                         }
-                        button {
-                            id: "state_add_before",
-                            class: "btn btn-secondary",
-                            onclick: move |_| {
-                                c3.add_new_sprite_state(true);
-                            },
-                            "Add Before"
+                        if controller.is_modify_states_possible(false, true) {
+                            button {
+                                id: "state_delete",
+                                class: "btn btn-danger",
+                                onclick: move |_| {
+                                    c2.remove_sprite_state();
+                                },
+                                "Delete"
+                            }
                         }
-                        button {
-                            id: "state_add_after",
-                            class: "btn btn-secondary",
-                            onclick: move |_| {
-                                c4.add_new_sprite_state(false);
-                            },
-                            "Add After"
+                        if controller.is_modify_states_possible(true, false) {
+                            button {
+                                id: "state_add",
+                                class: "btn btn-secondary",
+                                onclick: move |_| {
+                                    c3.add_new_sprite_state();
+                                },
+                                "Add New State"
+                            }
                         }
                     }
                 }

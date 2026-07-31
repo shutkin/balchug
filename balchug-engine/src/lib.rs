@@ -1,8 +1,6 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
-use std::ops::Deref;
 use std::rc::Rc;
-use std::task::Context;
 use log::{error, info};
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};

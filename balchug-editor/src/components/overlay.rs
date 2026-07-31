@@ -1,5 +1,6 @@
 use dioxus::html::geometry::ElementPoint;
 use dioxus::prelude::*;
+use dioxus::web::WebEventExt;
 use balchug_common::F32Rect;
 use crate::controllers::sprite_editor::SpriteEditController;
 
@@ -44,7 +45,7 @@ pub fn PreviewOverlay(controller: SpriteEditController) -> Element {
                         let dy = (coordinates.y - start_coordinates.y) as f32;
                         let area = *drag_rect_area.read();
                         if matches!(area, RectArea::Outside) {
-                            c0.drag_offset(*start_drag_offset.read(), dy);
+                            c0.drag_offset(*start_drag_offset.read(), dy, !event.as_web_event().ctrl_key());
                         } else {
                             let start_rect = *start_drag_rect.read();
                             let new_rect = modify_rect(start_rect, dx, dy, area);

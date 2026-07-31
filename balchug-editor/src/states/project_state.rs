@@ -14,6 +14,11 @@ impl ProjectState {
             sprite_parallax_factors: Store::new(HashMap::new()),
         }
     }
+    
+    pub fn get_parallax_factor(&self, sprite_id: usize) -> f32 {
+        self.sprite_parallax_factors.read()
+            .get(&sprite_id).copied().unwrap_or(1.0)
+    }
 
     pub fn add_parallax_factor(&mut self, sprite_id: usize, factor: f32) {
         self.sprite_parallax_factors.with_mut(move |map| {

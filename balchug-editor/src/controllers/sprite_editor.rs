@@ -1,4 +1,5 @@
 use std::cell::{Cell, RefCell};
+use std::cmp::Ordering;
 use crate::states::sprite_editor::SpriteEditorState;
 use balchug_engine::{start_engine, BalchugEngine, OffsetListener};
 use dioxus::prelude::*;
@@ -85,7 +86,7 @@ impl SpriteEditController {
         if let Some(point) = timeline_point {
             if let Some(engine) = self.engine.borrow().as_ref()
                 && let Some(sprite_animation) = engine.get_sprites_animations(Some(point.sprite_index)).first().cloned() {
-                let proportion = Self::sprite_proportion(&engine, &sprite_animation);
+                let proportion = Self::sprite_proportion(engine, &sprite_animation);
                 if let Some((offset, new_state)) = self.handle_new_point(point, &sprite_animation.states, proportion) {
                     engine.scroll_to_offset(offset);
                     self.state.set(Some(new_state));
@@ -136,17 +137,15 @@ impl SpriteEditController {
     }
 
     fn new_editor_state(&self, sprite_state: SpriteState, proportion: f32,
-                        sprite_index: usize, states_indices: Vec<usize>) -> SpriteEditorState {
-        let parallax_factor = self.project_state.borrow().sprite_parallax_factors.read()
-            .get(&sprite_index).copied().unwrap_or(1.0);
+                        sprite_id: usize, states_indices: Vec<usize>) -> SpriteEditorState {
+        let parallax_factor = self.project_state.borrow().get_parallax_factor(sprite_id);
         let rect = Self::scale_rect(sprite_state, self.canvas_rect.get(), proportion);
         SpriteEditorState {
-            timeline_points: TimeLinePoints {sprite_index, states_indices},
+            timeline_points: TimeLinePoints { sprite_index: sprite_id, states_indices},
             parallax_factor,
             sprite_state,
             original_sprite_state: sprite_state,
             rect,
-            scroll_adjust: false,
         }
     }
 
@@ -178,30 +177,42 @@ impl SpriteEditController {
     /*
     Overlay
      */
-    pub fn drag_offset(&mut self, start_offset: f32, dy: f32) {
+    pub fn drag_offset(&mut self, start_offset: f32, dy: f32, move_offset: bool) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().as_ref()
-            && let Some(sprite_animation) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).first() {
-            let states = &sprite_animation.states;
-            let points = state.timeline_points.states_indices.len();
-            let offset_diapason = states[state.timeline_points.states_indices[0]].offset..=states[state.timeline_points.states_indices[points - 1]].offset;
+            && let Some(mut animation) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).into_iter().next() {
             let new_offset = start_offset - dy / self.canvas_rect.get().height;
-            let bound_offset = new_offset.max(*offset_diapason.start()).min(*offset_diapason.end());
-            if let Some(new_sprite_state) = BalchugEngine::interpolate_state(states, bound_offset) {
-                let proportion = Self::sprite_proportion(engine, sprite_animation);
-                let canvas_rect = self.canvas_rect.get();
-                let rect = Self::scale_rect(new_sprite_state, canvas_rect, proportion);
-                self.state.set(Some(state.change_sprite_rect(rect, new_sprite_state)));
-                engine.scroll_to_offset(new_offset);
+            if move_offset {
+                let offset_delta = new_offset - state.sprite_state.offset;
+                for state in &mut animation.states {
+                    state.offset += offset_delta;
+                }
+                let rect = state.rect;
+                let mut sprite_state = state.sprite_state;
+                sprite_state.offset += offset_delta;
+                self.state.set(Some(state.change_sprite_rect(rect, sprite_state)));
+                engine.set_sprite_animation_states(state.timeline_points.sprite_index, animation.states);
+            } else {
+                let states = &animation.states;
+                let points = state.timeline_points.states_indices.len();
+                let offset_diapason = states[state.timeline_points.states_indices[0]].offset..=states[state.timeline_points.states_indices[points - 1]].offset;
+                let bound_offset = new_offset.max(*offset_diapason.start()).min(*offset_diapason.end());
+                if let Some(new_sprite_state) = BalchugEngine::interpolate_state(states, bound_offset) {
+                    let proportion = Self::sprite_proportion(engine, &animation);
+                    let canvas_rect = self.canvas_rect.get();
+                    let rect = Self::scale_rect(new_sprite_state, canvas_rect, proportion);
+                    self.state.set(Some(state.change_sprite_rect(rect, new_sprite_state)));
+                }
             }
+            engine.scroll_to_offset(new_offset);
         }
     }
 
     pub fn set_sprite_rect(&mut self, new_rect: F32Rect) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().cloned()
-            && let Some(mut sprite) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).first().cloned()
-            && let Some(sprite_state) = BalchugEngine::interpolate_state(&sprite.states, state.sprite_state.offset) {
+            && let Some(mut animation) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).into_iter().next()
+            && let Some(sprite_state) = BalchugEngine::interpolate_state(&animation.states, state.sprite_state.offset) {
             let canvas_rect = self.canvas_rect.get();
             let new_sprite_state = SpriteState {
                 offset: sprite_state.offset,
@@ -210,22 +221,22 @@ impl SpriteEditController {
                 width: new_rect.width / canvas_rect.width,
                 color: sprite_state.color,
             };
-            Self::apply_states_change(&state.timeline_points, &mut sprite.states,
+            Self::apply_states_change(&state.timeline_points, &mut animation.states,
                                       new_sprite_state, state.parallax_factor);
 
-            if state.scroll_adjust && state.timeline_points.states_indices.len() > 1 {
+            if state.timeline_points.states_indices.len() == 2 {
                 let first_index = state.timeline_points.states_indices[0];
                 let last_index = state.timeline_points.states_indices[state.timeline_points.states_indices.len() - 1];
                 let (first_state, last_state) = Self::scroll_adjust(
                     new_sprite_state,
-                    1.0,
+                    state.parallax_factor,
                     canvas_rect.width / canvas_rect.height,
-                    Self::sprite_proportion(engine, &sprite));
-                sprite.states[first_index] = first_state;
-                sprite.states[last_index] = last_state;
+                    Self::sprite_proportion(engine, &animation));
+                animation.states[first_index] = first_state;
+                animation.states[last_index] = last_state;
             }
 
-            engine.set_sprite_animation_states(state.timeline_points.sprite_index, sprite.states);
+            engine.set_sprite_animation_states(state.timeline_points.sprite_index, animation.states);
             self.state.set(Some(state.change_sprite_rect(new_rect, new_sprite_state)));
         }
     }
@@ -295,61 +306,59 @@ impl SpriteEditController {
         }
     }
 
-    pub fn set_scroll_adjust(&mut self, adjust: bool) {
-        if let Some(mut state) = self.state_memo.read().cloned() {
-            state.scroll_adjust = adjust;
-            self.state.set(Some(state));
+    fn find_cur_state_index(states: &[SpriteState], points: &TimeLinePoints, state: &SpriteState) -> Option<usize> {
+        if points.states_indices.is_empty() {
+            None
+        } else if points.states_indices.len() == 1 {
+            Some(points.states_indices[0])
+        } else {
+            for &i in &points.states_indices {
+                if (states[i].offset - state.offset).abs() < 0.01 {
+                    return Some(i);
+                }
+            }
+            None
         }
     }
 
-    pub fn add_new_sprite_state(&mut self, is_before: bool) {
-        /*if let Some(engine) = self.engine.borrow().as_ref()
-            && let Some(state) = *self.state_memo.read() {
-            let states = &self.get_sprites_states()[state.sprite_index].states;
-            let new_state_index;
-            let mut new_state = state.original_sprite_state;
-            if is_before {
-                new_state_index = state.state_index;
-                if state.state_index == 0 {
-                    new_state.offset -= 1.0;
-                } else {
-                    new_state = Self::half_states(&new_state, &states[state.state_index - 1]);
-                }
-            } else {
-                new_state_index = state.state_index + 1;
-                if state.state_index == states.len() - 1 {
-                    new_state.offset += 1.0;
-                } else {
-                    new_state = Self::half_states(&new_state, &states[state.state_index + 1]);
-                }
+    pub fn is_modify_states_possible(&self, adding: bool, removing: bool) -> bool {
+        if let Some(state) = self.state_memo.read().as_ref()
+            && let Some(engine) = self.engine.borrow().as_ref()
+            && let Some(animation) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).first() {
+            let cur_state_index = Self::find_cur_state_index(&animation.states, &state.timeline_points, &state.sprite_state);
+            if adding && cur_state_index.is_none() {
+                return true;
             }
-            engine.insert_image_sprite_state(new_state, state.sprite_index, new_state_index);
+            if removing && cur_state_index.is_some() && animation.states.len() > 2 {
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn add_new_sprite_state(&mut self) {
+        if let Some(engine) = self.engine.borrow().as_ref()
+            && let Some(state) = self.state_memo.read().as_ref() {
+            let mut animations = engine.get_sprites_animations(None);
+            if let Some(animation) = animations.get_mut(state.timeline_points.sprite_index) {
+                animation.states.push(state.sprite_state);
+                animation.states.sort_by(|a, b| a.offset.partial_cmp(&b.offset).unwrap_or(Ordering::Equal));
+            }
+            engine.set_scenario(animations);
             self.state.set(None);
-            self.timeline_points_signal.set(None);
-        }*/
+        }
     }
 
     pub fn remove_sprite_state(&mut self) {
-        /*if let Some(engine) = self.engine.borrow().as_ref()
-            && let Some(state) = *self.state_memo.read() {
-            engine.delete_image_sprite_state(state.sprite_index, state.state_index);
-            self.state.set(None);
-            self.timeline_points_signal.set(None);
-        }*/
-    }
-
-    fn half_states(state0: &SpriteState, state1: &SpriteState) -> SpriteState {
-        SpriteState {
-            offset: (state0.offset + state1.offset) * 0.5,
-            x: (state0.x + state1.x) * 0.5,
-            y: (state0.y + state1.y) * 0.5,
-            width: (state0.width + state1.width) * 0.5,
-            color: [
-                (state0.color[0] + state1.color[0]) * 0.5,
-                (state0.color[1] + state1.color[1]) * 0.5,
-                (state0.color[2] + state1.color[2]) * 0.5,
-                (state0.color[3] + state1.color[3]) * 0.5
-            ],
+        if let Some(engine) = self.engine.borrow().as_ref()
+            && let Some(state) = self.state_memo.read().as_ref() {
+            let mut animations = engine.get_sprites_animations(None);
+            if let Some(animation) = animations.get_mut(state.timeline_points.sprite_index)
+                && let Some(i) = Self::find_cur_state_index(&animation.states, &state.timeline_points, &state.sprite_state) {
+                animation.states.remove(i);
+                engine.set_scenario(animations);
+                self.state.set(None);
+            }
         }
     }
 }
