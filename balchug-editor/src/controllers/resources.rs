@@ -4,7 +4,7 @@ use dioxus::html::FileData;
 use dioxus::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use balchug_common::sprite::{SpriteAnimation, SpriteState, TextLine};
+use balchug_common::sprite::{SpriteAnimation, SpriteImageData, SpriteData, SpriteState, SpriteTextData};
 use crate::states::project_state::ProjectState;
 
 #[derive(Clone)]
@@ -54,43 +54,34 @@ impl ResourcesController {
     }
 
     pub fn put_image(&self, image_id: usize, parallax_factor: f32) {
-        if let Some(engine) = self.engine.borrow().as_ref() {
-            let mut scenario_images = engine.get_scenario_images_states(None);
-            let sprite_id = scenario_images.len();
-            let cur_offset = engine.get_offset();
-            let aspect_ratio = *self.project_state.borrow().aspect_ratio.read();
-
-            let item_proportion = engine.get_atlas_item(image_id)
-                .map(|item| item.origin_width as f32 / item.origin_height as f32)
-                .unwrap_or(1.0);
-
-            let animation = SpriteAnimation {
-                sprite_id,
-                atlas_item_id: image_id,
-                states: Self::create_default_animation(cur_offset, aspect_ratio, item_proportion, parallax_factor),
-            };
-            scenario_images.push(animation);
-            engine.set_scenario(Some(scenario_images), None);
-            self.project_state.borrow_mut().add_parallax_factor(sprite_id, parallax_factor);
-        }
+        let data = SpriteData::Image(SpriteImageData{ atlas_item_id: image_id });
+        let proportion = self.engine.borrow().as_ref()
+            .and_then(|engine| engine.get_atlas_item(image_id))
+            .map(|item| item.origin_width as f32 / item.origin_height as f32)
+            .unwrap_or(1.0);
+        self.add_sprite_animation(data, proportion, parallax_factor);
     }
 
     pub fn put_text(&self, text: String, size: i32, parallax_factor: f32) {
-        let size = size as f32 * 0.002;
+        let relative_height = size as f32 * 0.002;
+        let data = SpriteData::Text(SpriteTextData{ text, relative_height });
+        self.add_sprite_animation(data, 1.0 / relative_height, parallax_factor);
+    }
+
+    fn add_sprite_animation(&self, data: SpriteData, proportion: f32, parallax_factor: f32) {
         if let Some(engine) = self.engine.borrow().as_ref() {
-            let mut text_lines = engine.get_scenario_text_lines(None);
+            let mut sprites = engine.get_sprites_animations(None);
+            let sprite_id = sprites.len();
             let cur_offset = engine.get_offset();
             let aspect_ratio = *self.project_state.borrow().aspect_ratio.read();
-
-            let text_line = TextLine {
-                text,
-                relative_height: size,
-                animation: Self::create_default_animation(cur_offset, aspect_ratio, 1.0 / size, parallax_factor),
+            let animation = SpriteAnimation {
+                sprite_id,
+                data,
+                states: Self::create_default_animation(cur_offset, aspect_ratio, proportion, parallax_factor),
             };
-            info!("{text_line:?}");
-            text_lines.push(text_line);
-            engine.set_scenario(None, Some(text_lines));
-            //self.project_state.borrow_mut().add_parallax_factor(sprite_id, parallax_factor);
+            sprites.push(animation);
+            engine.set_scenario(sprites);
+            self.project_state.borrow_mut().add_parallax_factor(sprite_id, parallax_factor);
         }
     }
 

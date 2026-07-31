@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use balchug_common::atlas::{AtlasItem, FontData};
-use balchug_common::sprite::{Sprite, SpriteState, TextLine};
+use balchug_common::sprite::{Sprite, SpriteState, SpriteTextData};
 
 #[inline]
 fn spline(x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32, x: f32) -> f32 {
@@ -79,7 +79,7 @@ fn interpolate_states(states: &[SpriteState], state_index: usize, offset: f32) -
     }
 }
 
-pub fn arrange_text_line(line: &TextLine, cur_state: &SpriteState, font: &FontData, atlas_items: &HashMap<usize, AtlasItem>) -> Vec<Sprite> {
+pub fn arrange_text_line(line: &SpriteTextData, cur_state: &SpriteState, font: &FontData, atlas_items: &HashMap<usize, AtlasItem>) -> Vec<Sprite> {
     let mut result = Vec::new();
     let scale = cur_state.width * line.relative_height / font.height;
     let (mut cx, cy) = (cur_state.x, cur_state.y + font.ascend * scale);

@@ -4,9 +4,8 @@ use balchug_engine::{start_engine, BalchugEngine, OffsetListener};
 use dioxus::prelude::*;
 use std::rc::Rc;
 use web_sys::{HtmlCanvasElement, Window};
-use balchug_common::atlas::AtlasItem;
 use balchug_common::F32Rect;
-use balchug_common::sprite::{SpriteAnimation, SpriteState};
+use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState};
 use crate::components::timeline::{TimeLinePoint, TimeLinePoints};
 use crate::states::project_state::ProjectState;
 
@@ -65,6 +64,19 @@ impl SpriteEditController {
     pub fn get_cur_state(&self) -> Option<SpriteEditorState> {
         self.state_memo.read().cloned()
     }
+    
+    fn sprite_proportion(engine: &BalchugEngine, sprite_animation: &SpriteAnimation) -> f32 {
+        match &sprite_animation.data {
+            SpriteData::Image(image_data) => {
+                engine.get_atlas_item(image_data.atlas_item_id).map(|item| {
+                    item.origin_width as f32 / item.origin_height as f32
+                }).unwrap_or(1.0)
+            }
+            SpriteData::Text(text_data) => {
+                1.0 / text_data.relative_height
+            }
+        }
+    }
 
     /*
     Timeline
@@ -72,9 +84,9 @@ impl SpriteEditController {
     pub fn set_timeline_point(&mut self, timeline_point: Option<TimeLinePoint>) {
         if let Some(point) = timeline_point {
             if let Some(engine) = self.engine.borrow().as_ref()
-                && let Some(sprite_animation) = engine.get_scenario_images_states(Some(point.sprite_index)).first().cloned() {
-                let atlas_item = engine.get_atlas_item(sprite_animation.atlas_item_id).unwrap();
-                if let Some((offset, new_state)) = self.handle_new_point(point, &sprite_animation.states, atlas_item) {
+                && let Some(sprite_animation) = engine.get_sprites_animations(Some(point.sprite_index)).first().cloned() {
+                let proportion = Self::sprite_proportion(&engine, &sprite_animation);
+                if let Some((offset, new_state)) = self.handle_new_point(point, &sprite_animation.states, proportion) {
                     engine.scroll_to_offset(offset);
                     self.state.set(Some(new_state));
                 } else {
@@ -86,11 +98,11 @@ impl SpriteEditController {
         }
     }
 
-    fn handle_new_point(&self, point: TimeLinePoint, sprite_states: &[SpriteState], atlas_item: AtlasItem) -> Option<(f32, SpriteEditorState)> {
+    fn handle_new_point(&self, point: TimeLinePoint, sprite_states: &[SpriteState], proportion: f32) -> Option<(f32, SpriteEditorState)> {
         if let Some(state) = self.state_memo.read().as_ref() {
             if state.timeline_points.sprite_index != point.sprite_index {
                 let state = self.new_editor_state(
-                    sprite_states[point.state_index], atlas_item,
+                    sprite_states[point.state_index], proportion,
                     point.sprite_index, vec![point.state_index]);
                 return Some((sprite_states[point.state_index].offset, state));
             }
@@ -110,24 +122,24 @@ impl SpriteEditController {
             };
             let offset = sum_offset / new_states.len() as f32;
             if let Some(sprite_state) = BalchugEngine::interpolate_state(sprite_states, offset) {
-                let state = self.new_editor_state(sprite_state, atlas_item, point.sprite_index, new_states);
+                let state = self.new_editor_state(sprite_state, proportion, point.sprite_index, new_states);
                 Some((offset, state))
             } else {
                 None
             }
         } else {
             let state = self.new_editor_state(
-                sprite_states[point.state_index], atlas_item,
+                sprite_states[point.state_index], proportion,
                 point.sprite_index, vec![point.state_index]);
             Some((sprite_states[point.state_index].offset, state))
         }
     }
 
-    fn new_editor_state(&self, sprite_state: SpriteState, atlas_item: AtlasItem,
+    fn new_editor_state(&self, sprite_state: SpriteState, proportion: f32,
                         sprite_index: usize, states_indices: Vec<usize>) -> SpriteEditorState {
         let parallax_factor = self.project_state.borrow().sprite_parallax_factors.read()
             .get(&sprite_index).copied().unwrap_or(1.0);
-        let rect = Self::scale_rect(sprite_state, self.canvas_rect.get(), atlas_item);
+        let rect = Self::scale_rect(sprite_state, self.canvas_rect.get(), proportion);
         SpriteEditorState {
             timeline_points: TimeLinePoints {sprite_index, states_indices},
             parallax_factor,
@@ -138,13 +150,12 @@ impl SpriteEditController {
         }
     }
 
-    fn scale_rect(sprite_state: SpriteState, canvas_rect: F32Rect, atlas_item: AtlasItem) -> F32Rect {
-        let proportion = atlas_item.origin_height as f32 / atlas_item.origin_width as f32;
+    fn scale_rect(sprite_state: SpriteState, canvas_rect: F32Rect, proportion: f32) -> F32Rect {
         F32Rect {
             x: sprite_state.x * canvas_rect.width + canvas_rect.x,
             y: sprite_state.y * canvas_rect.width + canvas_rect.y,
             width: sprite_state.width * canvas_rect.width,
-            height: sprite_state.width * canvas_rect.width * proportion,
+            height: sprite_state.width * canvas_rect.width / proportion,
         }
     }
 
@@ -158,7 +169,7 @@ impl SpriteEditController {
 
     pub fn get_sprites_states(&self) -> Vec<SpriteAnimation> {
         if let Some(engine) = self.engine.borrow().as_ref() {
-            engine.get_scenario_images_states(None)
+            engine.get_sprites_animations(None)
         } else {
             Vec::new()
         }
@@ -170,16 +181,16 @@ impl SpriteEditController {
     pub fn drag_offset(&mut self, start_offset: f32, dy: f32) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().as_ref()
-            && let Some(sprite_animation) = engine.get_scenario_images_states(Some(state.timeline_points.sprite_index)).first() {
+            && let Some(sprite_animation) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).first() {
             let states = &sprite_animation.states;
             let points = state.timeline_points.states_indices.len();
             let offset_diapason = states[state.timeline_points.states_indices[0]].offset..=states[state.timeline_points.states_indices[points - 1]].offset;
             let new_offset = start_offset - dy / self.canvas_rect.get().height;
             let bound_offset = new_offset.max(*offset_diapason.start()).min(*offset_diapason.end());
             if let Some(new_sprite_state) = BalchugEngine::interpolate_state(states, bound_offset) {
-                let atlas_item = engine.get_atlas_item(sprite_animation.atlas_item_id).unwrap();
+                let proportion = Self::sprite_proportion(engine, sprite_animation);
                 let canvas_rect = self.canvas_rect.get();
-                let rect = Self::scale_rect(new_sprite_state, canvas_rect, atlas_item);
+                let rect = Self::scale_rect(new_sprite_state, canvas_rect, proportion);
                 self.state.set(Some(state.change_sprite_rect(rect, new_sprite_state)));
                 engine.scroll_to_offset(new_offset);
             }
@@ -189,7 +200,7 @@ impl SpriteEditController {
     pub fn set_sprite_rect(&mut self, new_rect: F32Rect) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().cloned()
-            && let Some(mut sprite) = engine.get_scenario_images_states(Some(state.timeline_points.sprite_index)).first().cloned()
+            && let Some(mut sprite) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).first().cloned()
             && let Some(sprite_state) = BalchugEngine::interpolate_state(&sprite.states, state.sprite_state.offset) {
             let canvas_rect = self.canvas_rect.get();
             let new_sprite_state = SpriteState {
@@ -202,20 +213,19 @@ impl SpriteEditController {
             Self::apply_states_change(&state.timeline_points, &mut sprite.states,
                                       new_sprite_state, state.parallax_factor);
 
-            if state.scroll_adjust && state.timeline_points.states_indices.len() > 1
-                && let Some(atlas_item) = engine.get_atlas_item(sprite.atlas_item_id) {
+            if state.scroll_adjust && state.timeline_points.states_indices.len() > 1 {
                 let first_index = state.timeline_points.states_indices[0];
                 let last_index = state.timeline_points.states_indices[state.timeline_points.states_indices.len() - 1];
                 let (first_state, last_state) = Self::scroll_adjust(
                     new_sprite_state,
                     1.0,
                     canvas_rect.width / canvas_rect.height,
-                    atlas_item.origin_width as f32 / atlas_item.origin_height as f32);
+                    Self::sprite_proportion(engine, &sprite));
                 sprite.states[first_index] = first_state;
                 sprite.states[last_index] = last_state;
             }
 
-            engine.set_image_sprite_states(state.timeline_points.sprite_index, sprite.states);
+            engine.set_sprite_animation_states(state.timeline_points.sprite_index, sprite.states);
             self.state.set(Some(state.change_sprite_rect(new_rect, new_sprite_state)));
         }
     }
@@ -273,7 +283,7 @@ impl SpriteEditController {
     pub fn update_sprite_state(&self, new_state: SpriteState) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().as_ref()
-            && let Some(mut sprite) = engine.get_scenario_images_states(Some(state.timeline_points.sprite_index)).first().cloned() {
+            && let Some(mut sprite) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).first().cloned() {
             if state.timeline_points.states_indices.len() == 1 {
                 let index = state.timeline_points.states_indices[0];
                 sprite.states[index] = new_state;
@@ -281,7 +291,7 @@ impl SpriteEditController {
                 Self::apply_states_change(&state.timeline_points, &mut sprite.states,
                                           new_state, state.parallax_factor);
             }
-            engine.set_image_sprite_states(state.timeline_points.sprite_index, sprite.states);
+            engine.set_sprite_animation_states(state.timeline_points.sprite_index, sprite.states);
         }
     }
 

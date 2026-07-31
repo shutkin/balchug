@@ -10,7 +10,7 @@ use web_sys::{Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2Render
 use balchug_common::atlas::{Atlas, AtlasItem, FontData};
 use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
-use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteState, TextLine};
+use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteData, SpriteState};
 use crate::font::font_builder::build_font;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
@@ -116,33 +116,19 @@ impl BalchugEngine {
         load_font(&self.context, &self.renderer, img_url)
     }
 
-    pub fn set_scenario(&self, images: Option<Vec<SpriteAnimation>>, text_lines: Option<Vec<TextLine>>) {
+    pub fn set_scenario(&self, sprites: Vec<SpriteAnimation>) {
         let mut scenario = self.context.scenario.borrow().clone();
-        if let Some(images) = images {
-            scenario.images = images;
-        }
-        if let Some(text_lines) = text_lines {
-            scenario.text_lines = text_lines;
-        }
+        scenario.sprites = sprites;
         self.context.scenario.replace(scenario);
         self.update();
     }
 
-    pub fn get_scenario_images_states(&self, object_index: Option<usize>) -> Vec<SpriteAnimation> {
+    pub fn get_sprites_animations(&self, object_index: Option<usize>) -> Vec<SpriteAnimation> {
         if let Some(index) = object_index {
-            self.context.scenario.borrow().images.get(index).cloned()
+            self.context.scenario.borrow().sprites.get(index).cloned()
                 .into_iter().collect()
         } else {
-            self.context.scenario.borrow().images.clone()
-        }
-    }
-
-    pub fn get_scenario_text_lines(&self, object_index: Option<usize>) -> Vec<TextLine> {
-        if let Some(index) = object_index {
-            self.context.scenario.borrow().text_lines.get(index).cloned()
-                .into_iter().collect()
-        } else {
-            self.context.scenario.borrow().text_lines.clone()
+            self.context.scenario.borrow().sprites.clone()
         }
     }
 
@@ -171,9 +157,9 @@ impl BalchugEngine {
         self.context.force_rerender.set(true);
     }
 
-    pub fn set_image_sprite_states(&self, object_index: usize, states: Vec<SpriteState>) {
+    pub fn set_sprite_animation_states(&self, object_index: usize, states: Vec<SpriteState>) {
         let scenario = &mut self.context.scenario.borrow_mut();
-        scenario.images[object_index].states = states;
+        scenario.sprites[object_index].states = states;
         let width = self.context.canvas_width.get();
         let max_scroll = scenario_max_offset(scenario) * width;
         self.context.scroll.borrow_mut().set_limit_up(max_scroll);
@@ -198,22 +184,24 @@ fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     let scenario = ctx.scenario.borrow();
     let (mut sprites, mut text_sprites) = (Vec::new(), Vec::new());
 
-    for image_animation in &scenario.images {
-        if let Some(cur_state) = interpolate_state(&image_animation.states, scaled_offset) && cur_state.color[3] > 0.01 {
-            sprites.push(Sprite {
-                state: scale_sprite_state(&cur_state, width),
-                atlas_item: *ctx.atlas_items.borrow().get(&image_animation.atlas_item_id).unwrap(),
-            });
-        }
-    }
-    for text_animation in &scenario.text_lines {
-        if let Some(cur_state) = interpolate_state(&text_animation.animation, scaled_offset) && cur_state.color[3] > 0.01 {
-            for glyph_sprite in arrange_text_line(text_animation, &cur_state, &ctx.font.borrow(), &ctx.font_atlas_items.borrow()) {
-                let glyph_sprite = Sprite {
-                    state: scale_sprite_state(&glyph_sprite.state, width),
-                    atlas_item: glyph_sprite.atlas_item,
-                };
-                text_sprites.push(glyph_sprite);
+    for sprite_animation in &scenario.sprites {
+        if let Some(cur_state) = interpolate_state(&sprite_animation.states, scaled_offset) && cur_state.color[3] > 0.01 {
+            match &sprite_animation.data {
+                SpriteData::Image(image_data) => {
+                    sprites.push(Sprite {
+                        state: scale_sprite_state(&cur_state, width),
+                        atlas_item: *ctx.atlas_items.borrow().get(&image_data.atlas_item_id).unwrap(),
+                    });
+                }
+                SpriteData::Text(text_data) => {
+                    for glyph_sprite in arrange_text_line(text_data, &cur_state, &ctx.font.borrow(), &ctx.font_atlas_items.borrow()) {
+                        let glyph_sprite = Sprite {
+                            state: scale_sprite_state(&glyph_sprite.state, width),
+                            atlas_item: glyph_sprite.atlas_item,
+                        };
+                        text_sprites.push(glyph_sprite);
+                    }
+                }
             }
         }
     }

@@ -19,13 +19,23 @@ pub struct SpriteState {
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct SpriteAnimation {
     pub sprite_id: usize,
-    pub atlas_item_id: usize,
+    pub data: SpriteData,
     pub states: Vec<SpriteState>,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
-pub struct TextLine {
+pub struct SpriteImageData {
+    pub atlas_item_id: usize,
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
+pub struct SpriteTextData {
     pub text: String,
     pub relative_height: f32,
-    pub animation: Vec<SpriteState>,
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
+pub enum SpriteData {
+    Image(SpriteImageData),
+    Text(SpriteTextData),
 }
