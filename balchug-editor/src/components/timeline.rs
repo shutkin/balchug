@@ -5,6 +5,8 @@ use dioxus::web::WebEventExt;
 use balchug_common::sprite::SpriteState;
 use crate::controllers::sprite_editor::SpriteEditController;
 
+const LAYER_WIDTH: i32 = 20;
+
 #[derive(Copy, Clone, PartialEq)]
 struct TimeLineView {
     offset: f32,
@@ -32,9 +34,11 @@ pub fn TimeLine(controller: SpriteEditController) -> Element {
     let c0 = controller.clone();
     let mut c1 = controller.clone();
     let c2 = controller.clone();
+    let c3 = controller.clone();
+    let c4 = controller.clone();
 
-    let mut offset = use_signal(|| -1_f32);
-    let mut scale = use_signal(|| 50_f32);
+    let mut offset = use_signal(|| -0.25_f32);
+    let mut scale = use_signal(|| 120_f32);
     let mut svg_size = use_signal(|| (0_f32, 0_f32));
     let mut cursor_type = use_signal(|| "default".to_string());
     let selected_points_memo = use_memo(move || c0.get_selected_points());
@@ -50,7 +54,15 @@ pub fn TimeLine(controller: SpriteEditController) -> Element {
         }
     };
 
+    let titles = use_memo(move || c3.get_sprite_titles());
     rsx! {
+        div {
+            id: "timeline_titles",
+            class: "timeline-titles",
+            for (i, title) in titles.read().iter().enumerate() {
+                SpriteControl {i, title, controller: c4.clone()}
+            }
+        }
         div {
             id: "timeline_body",
             class: "timeline-body",
@@ -98,6 +110,34 @@ pub fn TimeLine(controller: SpriteEditController) -> Element {
                     selected_points_memo,
                     points_store,
                 }
+            }
+        }
+    }
+}
+
+#[component]
+fn SpriteControl(i: usize, title: String, controller: SpriteEditController) -> Element {
+    let mut c0 = controller.clone();
+    let mut c1 = controller.clone();
+    rsx! {
+        div {
+            id: "sprite_{i}_control",
+            class: "timeline-sprite-control",
+            style: "width:{LAYER_WIDTH}px",
+            button {
+                id: "sprite_{i}_remove",
+                class: "btn-small btn-danger",
+                onclick: move |_| {
+                    c0.remove_sprite(i);
+                },
+                "-"
+            }
+            div {
+                class: "timeline-sprite-title",
+                onclick: move |_| {
+                    c1.set_timeline_sprite(i);
+                },
+                "{title}"
             }
         }
     }
@@ -197,7 +237,7 @@ fn build_offset_d(offset: f32, view: TimeLineView) -> String {
 }
 
 fn build_path_d(states: &[SpriteState], index: usize, view: TimeLineView, mut points_store: Store<Vec<TimeLinePoint>>) -> String {
-    let x = index * 20 + 10;
+    let x = index as i32 * LAYER_WIDTH + LAYER_WIDTH / 2;
     let points = states.iter().enumerate()
         .map(|(i, state)| (i, (state.offset - view.offset) * view.scale))
         .filter(|(_, y)| *y > 0.0 && *y < view.height)

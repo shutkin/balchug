@@ -31,6 +31,13 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
             }
             c0.update_sprite_state(state);
             c0.edit_mode_off();
+            let c = c0.clone();
+            use_resource(move || {
+                let c = c.clone();
+                async move {
+                    c.send_scenario().await
+                }
+            });
         };
 
         rsx! {

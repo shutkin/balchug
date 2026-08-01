@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
-use balchug_common::sprite::SpriteState;
 use crate::controllers::resources::ResourcesController;
+use crate::states::project_state::SpriteProperties;
 
 #[component]
 pub fn ImagesBank(controller: ResourcesController) -> Element {
@@ -75,12 +75,83 @@ fn ImageAsset(controller: ResourcesController, id: usize, url: String) -> Elemen
                 id: format!("image_{id}_put"),
                 class: "btn btn-secondary",
                 onclick: move |_| {
-                    controller.put_image(id, 1.0);
+                    controller.get_sprite_id_signal().set(Some(id));
                 },
                 "Put"
             }
         }
     }
+}
+
+#[component]
+pub fn SpriteDialog(mut controller: ResourcesController) -> Element {
+    rsx! {
+        if let Some(sprite_id) = *controller.get_sprite_id_signal().read() {
+            div {
+                id: "sprite_dialog_overlay",
+                class: "modal-overlay",
+                div {
+                    id: "sprite_dialog_box",
+                    class: "modal-box",
+                    form {
+                        id: "sprite_dialog_body",
+                        class: "panel-body",
+                        onsubmit: move |e| {
+                            controller.get_sprite_id_signal().set(None);
+                            let props = parse_sprite_props(e.values());
+                            controller.put_image(sprite_id, props);
+                            e.prevent_default();
+                        },
+                        h4 {
+                            "Add image {sprite_id}"
+                        }
+                        label {
+                            "Title",
+                            input {
+                                id: "sprite_dialog_title",
+                                name: "title",
+                                r#type: "text",
+                            }
+                        }
+                        label {
+                            "Parallax Factor",
+                            input {
+                                id: "sprite_dialog_parallax",
+                                name: "parallax",
+                                r#type: "range",
+                                min: "0.5",
+                                max: "2",
+                                step: "0.1",
+                                value: "1.0",
+                            }
+                        }
+                        input {
+                            id: "sprite_dialog_submit",
+                            class: "btn btn-primary",
+                            r#type: "submit",
+                            "Ok"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn parse_sprite_props(values: Vec<(String, FormValue)>) -> SpriteProperties {
+    let mut props = SpriteProperties::default();
+    for (name, value) in values {
+        let v = match value {
+            FormValue::Text(txt) => txt,
+            FormValue::File(_) => String::new(),
+        };
+        match name.as_str() {
+            "title" => props.title = v,
+            "parallax" => props.parallax_factor = v.parse::<f32>().unwrap_or(1.0),
+            _ => {}
+        }
+    }
+    props
 }
 
 #[component]
@@ -100,7 +171,8 @@ pub fn TextLine(controller: ResourcesController) -> Element {
                 size = txt_value.parse::<i32>().unwrap_or(10);
             }
         }
-        c0.put_text(text, size, 1.0);
+        let title = text.chars().take(12).collect::<String>();
+        c0.put_text(text, size, SpriteProperties {title, parallax_factor: 1.0});
     };
 
     rsx! {

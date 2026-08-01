@@ -6,7 +6,7 @@ use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
-use crate::components::images::{ImagesBank, TextLine};
+use crate::components::images::{ImagesBank, SpriteDialog, TextLine};
 use crate::controllers::resources::ResourcesController;
 
 #[component]
@@ -104,6 +104,7 @@ pub fn ResourcesPanel(controller: ResourcesController) -> Element {
             class: "panel-box",
             ImagesBank {controller: controller.clone()}
             TextLine {controller: controller.clone()}
+            SpriteDialog {controller: controller.clone()}
         }
     }
 }

@@ -77,6 +77,11 @@ body {
     flex-direction: column;
 }
 
+.panel-body {
+    display: grid;
+    gap: 8px;
+}
+
 /* Typography & Branding Objects */
 .brand {
     display: flex;
@@ -123,6 +128,17 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    transition: background-color 0.2s;
+}
+
+.btn-small {
+    padding: 4px 4px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    border: none;
+    align-items: center;
     transition: background-color 0.2s;
 }
 
@@ -186,39 +202,6 @@ body {
     box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
 }
 
-.canvas-mock-content {
-    text-align: center;
-    padding: 24px;
-    z-index: 2;
-}
-
-.workspace-placeholder {
-    width: 80px;
-    height: 80px;
-    border: 2px dashed var(--accent-purple);
-    border-radius: 12px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background-color: rgba(203, 166, 247, 0.05);
-    margin: 0 auto 16px auto;
-    font-size: 24px;
-    color: var(--accent-purple);
-}
-
-.canvas-mock-content h3 {
-    font-size: 14px;
-    font-weight: 500;
-    margin-bottom: 4px;
-}
-
-.canvas-mock-content p {
-    font-size: 11px;
-    color: var(--text-muted);
-    max-width: 280px;
-    margin: 0 auto;
-}
-
 /* Sidebar Tab Component Rules */
 .tab-navigation {
     display: flex;
@@ -250,6 +233,24 @@ body {
     flex: 1;
     overflow-y: hidden;
     overflow-x: auto;
+}
+
+.timeline-titles {
+    display: flex;
+    flex-direction: row;
+    margin-bottom: 8px;
+}
+
+.timeline-sprite-control {
+    display: grid;
+    gap: 4px;
+}
+
+.timeline-sprite-title {
+    writing-mode: vertical-rl;
+    cursor: pointer;
+    font-size: 11px;
+    color: var(--text-muted);
 }
 
 /* Inspector Layout Controls Form Blocks */
@@ -379,18 +380,27 @@ input[type="range"] {
     text-overflow: ellipsis;
 }
 
-.btn-delete {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 4px 6px;
-    border-radius: 4px;
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
 }
 
-.btn-delete:hover {
-    color: var(--accent-danger);
-    background-color: rgba(243, 139, 168, 0.1);
+.modal-box {
+    background-color: var(--bg-dark);
+    padding: 30px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    max-width: 400px;
+    width: 90%;
 }
 
 /* Layer Node Hierarchy Stack */

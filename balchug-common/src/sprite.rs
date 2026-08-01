@@ -24,6 +24,12 @@ pub struct SpriteAnimation {
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
+pub enum SpriteData {
+    Image(SpriteImageData),
+    Text(SpriteTextData),
+}
+
+#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct SpriteImageData {
     pub atlas_item_id: usize,
 }
@@ -32,10 +38,4 @@ pub struct SpriteImageData {
 pub struct SpriteTextData {
     pub text: String,
     pub relative_height: f32,
-}
-
-#[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
-pub enum SpriteData {
-    Image(SpriteImageData),
-    Text(SpriteTextData),
 }

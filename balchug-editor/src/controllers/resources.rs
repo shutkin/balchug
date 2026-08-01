@@ -5,7 +5,7 @@ use dioxus::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
 use balchug_common::sprite::{SpriteAnimation, SpriteImageData, SpriteData, SpriteState, SpriteTextData};
-use crate::states::project_state::ProjectState;
+use crate::states::project_state::{ProjectState, SpriteProperties};
 
 #[derive(Clone)]
 pub struct ResourcesController {
@@ -13,6 +13,7 @@ pub struct ResourcesController {
     thumbs: Signal<Vec<String>>,
     engine: Rc<RefCell<Option<BalchugEngine>>>,
     project_state: Rc<RefCell<ProjectState>>,
+    sprite_id: Signal<Option<usize>>,
 }
 
 impl PartialEq for ResourcesController {
@@ -28,11 +29,16 @@ impl ResourcesController {
             engine,
             project_state,
             thumbs: Default::default(),
+            sprite_id: Signal::new(None),
         }
     }
     
     pub fn get_thumbs(&self) -> Vec<String> {
         self.thumbs.read().clone()
+    }
+    
+    pub fn get_sprite_id_signal(&self) -> Signal<Option<usize>> {
+        self.sprite_id
     }
     
     pub async fn handle_upload(&mut self, files: Vec<FileData>) {
@@ -53,22 +59,22 @@ impl ResourcesController {
         }
     }
 
-    pub fn put_image(&self, image_id: usize, parallax_factor: f32) {
+    pub fn put_image(&self, image_id: usize, props: SpriteProperties) {
         let data = SpriteData::Image(SpriteImageData{ atlas_item_id: image_id });
         let proportion = self.engine.borrow().as_ref()
             .and_then(|engine| engine.get_atlas_item(image_id))
             .map(|item| item.origin_width as f32 / item.origin_height as f32)
             .unwrap_or(1.0);
-        self.add_sprite_animation(data, proportion, parallax_factor);
+        self.add_sprite_animation(data, proportion, props);
     }
 
-    pub fn put_text(&self, text: String, size: i32, parallax_factor: f32) {
+    pub fn put_text(&self, text: String, size: i32, props: SpriteProperties) {
         let relative_height = size as f32 * 0.002;
         let data = SpriteData::Text(SpriteTextData{ text, relative_height });
-        self.add_sprite_animation(data, 1.0 / relative_height, parallax_factor);
+        self.add_sprite_animation(data, 1.0 / relative_height, props);
     }
 
-    fn add_sprite_animation(&self, data: SpriteData, proportion: f32, parallax_factor: f32) {
+    fn add_sprite_animation(&self, data: SpriteData, proportion: f32, props: SpriteProperties) {
         if let Some(engine) = self.engine.borrow().as_ref() {
             let mut sprites = engine.get_sprites_animations(None);
             let sprite_id = sprites.len();
@@ -77,11 +83,11 @@ impl ResourcesController {
             let animation = SpriteAnimation {
                 sprite_id,
                 data,
-                states: Self::create_default_animation(cur_offset, aspect_ratio, proportion, parallax_factor),
+                states: Self::create_default_animation(cur_offset, aspect_ratio, proportion, props.parallax_factor),
             };
             sprites.push(animation);
             engine.set_scenario(sprites);
-            self.project_state.borrow_mut().add_parallax_factor(sprite_id, parallax_factor);
+            self.project_state.borrow_mut().add_sprite_properties(sprite_id, props);
         }
     }
 

@@ -1,9 +1,11 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
+use log::info;
 use rand::distr::{Alphanumeric, SampleString};
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
 use crate::atlas::{create_atlas, create_empty_atlas};
+use crate::codegen::animations_to_code;
 use crate::CommonError;
 use crate::model::BalchugProject;
 
@@ -53,5 +55,16 @@ impl Server {
             lock.insert(project.id.clone(), project);
         }
         Ok((thumbs, atlas))
+    }
+    
+    pub fn update_scenario(&self, project: BalchugProject, scenario: &Scenario) -> Result<(), CommonError> {
+        if let Ok(mut lock) = self.projects.write() {
+            let project = lock.get_mut(&project.id).ok_or("Failed to update project")?;
+            project.scenario = scenario.clone();
+            
+            let code = animations_to_code(&scenario.sprites);
+            info!("Code:\n{code}");
+        }
+        Ok(())
     }
 }

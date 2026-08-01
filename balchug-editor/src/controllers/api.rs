@@ -2,8 +2,9 @@ use dioxus::html::bytes::Bytes;
 use dioxus::prelude::*;
 use reqwest::Client;
 use reqwest::header::CONTENT_TYPE;
-use balchug_common::api::{AddImageResponse, StartProjectResponse};
+use balchug_common::api::{AddImageResponse, StartProjectResponse, UpdateScenarioRq};
 use balchug_common::atlas::Atlas;
+use balchug_common::scenario::Scenario;
 
 const SERVER_URL: &str = "http://localhost:3000";
 
@@ -62,6 +63,21 @@ impl API {
             }
         }
         None
+    }
+
+    pub async fn update_scenario(&self, scenario: Scenario) {
+        let url = format!("{SERVER_URL}/{}/scenario", self.project_id);
+        let data = UpdateScenarioRq {
+            scenario,
+        };
+        match self.http_client.post(url).json(&data).send().await {
+            Ok(_) => {
+                info!("Scenario updated");
+            }
+            Err(err) => {
+                error!("Failed to update scenario: {err}");
+            }
+        }
     }
 
     pub fn asset_url(&self, path: &str) -> String {

@@ -45,7 +45,7 @@ fn App() -> Element {
     
     let project_state = Rc::new(RefCell::new(ProjectState::new()));
 
-    let edit_controller = SpriteEditController::new(engine.clone(), project_state.clone());
+    let edit_controller = SpriteEditController::new(engine.clone(), project_state.clone(), api.clone());
     let images_controller = ResourcesController::new(api.clone(), engine.clone(), project_state.clone());
 
     rsx! {

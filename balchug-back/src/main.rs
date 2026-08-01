@@ -1,13 +1,14 @@
 mod atlas;
 mod model;
 mod server;
+pub mod codegen;
 
 use crate::server::Server;
 use actix_cors::Cors;
 use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::web::PayloadConfig;
 use actix_web::{App, HttpServer, Responder, get, http, post, web};
-use balchug_common::api::{AddImageResponse, StartProjectResponse};
+use balchug_common::api::{AddImageResponse, StartProjectResponse, UpdateScenarioRq};
 use log::info;
 
 pub type CommonError = Box<dyn std::error::Error + Send + Sync>;
@@ -56,6 +57,18 @@ async fn upload_image(
     Ok(web::Json(AddImageResponse { thumbs, atlas }))
 }
 
+#[post("/{id}/scenario")]
+async fn scenario(path: web::Path<String>, server: web::Data<Server>, rq: web::Json<UpdateScenarioRq>)
+    -> Result<String, actix_web::Error> {
+    let id = path.into_inner();
+    let project = server
+        .get_project(&id)
+        .ok_or(ErrorNotFound("Project not found"))?;
+    info!("Project {} scenario update", id);
+    server.update_scenario(project, &rq.scenario).map_err(ErrorInternalServerError)?;
+    Ok(String::from("OK"))
+}
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -74,6 +87,7 @@ async fn main() -> std::io::Result<()> {
             .service(start)
             .service(assets)
             .service(upload_image)
+            .service(scenario)
     })
     .bind(("0.0.0.0", port))?
     .run()
