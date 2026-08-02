@@ -350,7 +350,6 @@ impl SpriteEditController {
     }
 
     pub async fn send_scenario(&self) {
-        info!("Sending scenario");
         let mut scenario = None;
         if let Some(engine) = self.engine.borrow().as_ref() {
             let sprites = engine.get_sprites_animations(None);

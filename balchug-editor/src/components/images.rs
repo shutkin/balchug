@@ -213,6 +213,8 @@ pub fn TextLine(controller: ResourcesController) -> Element {
                             option {"12"}
                             option {"14"}
                             option {"16"}
+                            option {"18"}
+                            option {"20"}
                         }
                     }
                 }

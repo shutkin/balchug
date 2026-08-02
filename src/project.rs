@@ -1,2 +1,0 @@
-use balchug_common::sprite::{SpriteAnimation,SpriteState,SpriteData,SpriteImageData,SpriteTextData};
-pub fn create_animations()->Vec<SpriteAnimation>{vec![SpriteAnimation{sprite_id:0,data:SpriteData::Image(SpriteImageData{atlas_item_id:0}),states:vec![SpriteState{offset:0.0,x:0.0,y:0.0,width:1.0,color:[0.0, 0.0, 0.0, 1.0]},SpriteState{offset:1.4749762,x:0.0,y:-1.4749762,width:1.0,color:[0.0, 0.0, 0.0, 1.0]},]},]}

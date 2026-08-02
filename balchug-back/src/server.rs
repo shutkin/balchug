@@ -5,7 +5,7 @@ use rand::distr::{Alphanumeric, SampleString};
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
 use crate::atlas::{create_atlas, create_empty_atlas};
-use crate::codegen::animations_to_code;
+use crate::codegen::{animations_to_code, atlas_to_code};
 use crate::CommonError;
 use crate::model::BalchugProject;
 
@@ -48,6 +48,11 @@ impl Server {
             &format!("./store/{}/image", project.id),
             &format!("./store/{}/atlas.webp", project.id),
         )?;
+        
+        if let Ok(code) = atlas_to_code(&atlas) {
+            info!("Atlas code:\n{code}");
+        }
+        
         project.images_atlas = atlas.clone();
         project.thumbs.push(format!("thumb_{image_index:05}.jpg"));
         let thumbs = project.thumbs.clone();
@@ -62,8 +67,9 @@ impl Server {
             let project = lock.get_mut(&project.id).ok_or("Failed to update project")?;
             project.scenario = scenario.clone();
             
-            let code = animations_to_code(&scenario.sprites);
-            info!("Code:\n{code}");
+            if let Ok(code) = animations_to_code(&scenario.sprites) {
+                info!("Scenario code:\n{code}");
+            }
         }
         Ok(())
     }

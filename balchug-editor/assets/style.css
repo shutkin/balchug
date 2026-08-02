@@ -242,7 +242,7 @@ body {
 }
 
 .timeline-sprite-control {
-    display: grid;
+    display: block;
     gap: 4px;
 }
 

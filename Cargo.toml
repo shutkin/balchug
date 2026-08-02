@@ -7,4 +7,3 @@ edition = "2024"
 members = ["balchug-common", "balchug-engine", "balchug-editor", "balchug-back"]
 
 [dependencies]
-balchug-common = { path = "./balchug-common" }
