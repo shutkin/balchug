@@ -1,6 +1,31 @@
 use dioxus::prelude::*;
+use balchug_common::sprite::Easing;
 use crate::controllers::sprite_editor::SpriteEditController;
 use crate::states::sprite_editor::SpriteEditorState;
+
+const EASING_LINEAR: &'static str = "Linear";
+const EASING_INCUBIC: &'static str = "In Cubic";
+const EASING_OUTCUBIC: &'static str = "Out Cubic";
+const EASING_INOUTCUBIC: &'static str = "In-Out Cubic";
+
+fn map_str_to_easing(str: &str) -> Easing {
+    match str {
+        EASING_LINEAR => Easing::Linear,
+        EASING_INCUBIC => Easing::InCubic,
+        EASING_OUTCUBIC => Easing::OutCubic,
+        EASING_INOUTCUBIC => Easing::InOutCubic,
+        _ => Easing::Linear,
+    }
+}
+
+fn map_easing_to_str(easing: Easing) -> &'static str {
+    match easing {
+        Easing::Linear => EASING_LINEAR,
+        Easing::InCubic => EASING_INCUBIC,
+        Easing::OutCubic => EASING_OUTCUBIC,
+        Easing::InOutCubic => EASING_INOUTCUBIC,
+    }
+}
 
 #[component]
 pub fn StateEditor(controller: SpriteEditController) -> Element {
@@ -14,17 +39,23 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
             let mut state = c0.get_cur_state()
                 .map(|s| s.original_sprite_state).unwrap_or_default();
             for (name, value) in values {
-                let v = match value {
-                    FormValue::Text(txt) => txt.parse::<f32>().unwrap_or(f32::NAN),
-                    _ => f32::NAN,
+                let txt = match value {
+                    FormValue::Text(txt) => txt,
+                    FormValue::File(_) => String::default(),
                 };
-                if !v.is_nan() {
+                let num = txt.parse::<f32>().unwrap_or(f32::NAN);
+                if !num.is_nan() {
                     match name.as_str() {
-                        "offset" => state.offset = v,
-                        "x" => state.x = v,
-                        "y" => state.y = v,
-                        "scale" => state.width = v,
-                        "alpha" => state.color[3] = v,
+                        "offset" => state.offset = num,
+                        "x" => state.x = num,
+                        "y" => state.y = num,
+                        "scale" => state.width = num,
+                        "alpha" => state.color[3] = num,
+                        _ => {}
+                    }
+                } else {
+                    match name.as_str() {
+                        "easing" => state.easing = map_str_to_easing(&txt),
                         _ => {}
                     }
                 }
@@ -181,6 +212,34 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
                         name: "alpha",
                         value: "{round(se.sprite_state.color[3])}",
                         step: "0.001",
+                    }
+                }
+            }
+            div {
+                id: "state_easing",
+                class: "form-group",
+                label {
+                    "Easing",
+                    select {
+                        id: "easing_select",
+                        name: "easing",
+                        value: "{map_easing_to_str(se.sprite_state.easing)}",
+                        option {
+                            selected: se.sprite_state.easing == Easing::Linear,
+                            "{EASING_LINEAR}"
+                        }
+                        option {
+                            selected: se.sprite_state.easing == Easing::InCubic,
+                            "{EASING_INCUBIC}"
+                        }
+                        option {
+                            selected: se.sprite_state.easing == Easing::OutCubic,
+                            "{EASING_OUTCUBIC}"
+                        }
+                        option {
+                            selected: se.sprite_state.easing == Easing::InOutCubic,
+                            "{EASING_INOUTCUBIC}"
+                        }
                     }
                 }
             }

@@ -4,7 +4,7 @@ use dioxus::html::FileData;
 use dioxus::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use balchug_common::sprite::{SpriteAnimation, SpriteImageData, SpriteData, SpriteState, SpriteTextData};
+use balchug_common::sprite::{SpriteAnimation, SpriteImageData, SpriteData, SpriteState, SpriteTextData, Easing};
 use crate::states::project_state::{ProjectState, SpriteProperties};
 
 #[derive(Clone)]
@@ -107,6 +107,7 @@ impl ResourcesController {
             y: start_y,
             width: 1.0,
             color: [1.0, 1.0, 1.0, 1.0],
+            easing: Easing::default(),
         };
         let state_one = SpriteState {
             offset: end_offset,
@@ -114,6 +115,7 @@ impl ResourcesController {
             y: end_y,
             width: 1.0,
             color: [1.0, 1.0, 1.0, 1.0],
+            easing: Easing::default(),
         };
         vec![state_zero, state_one]
     }

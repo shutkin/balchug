@@ -7,6 +7,17 @@ pub struct Sprite {
     pub atlas_item: AtlasItem,
 }
 
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum Easing {
+    Linear, InCubic, OutCubic, InOutCubic,
+}
+
+impl Default for Easing {
+    fn default() -> Self {
+        Easing::Linear
+    }
+}
+
 #[derive(Debug, Copy, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct SpriteState {
     pub offset: f32,
@@ -14,6 +25,7 @@ pub struct SpriteState {
     pub y: f32,
     pub width: f32,
     pub color: [f32; 4],
+    pub easing: Easing,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]

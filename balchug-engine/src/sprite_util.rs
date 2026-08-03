@@ -1,46 +1,27 @@
 use std::collections::HashMap;
 use balchug_common::atlas::{AtlasItem, FontData};
-use balchug_common::sprite::{Sprite, SpriteState, SpriteTextData};
+use balchug_common::sprite::{Easing, Sprite, SpriteState, SpriteTextData};
 
-#[inline]
-fn spline(x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32, x: f32) -> f32 {
-    y0 * (x - x1) * (x - x2) / ((x0 - x1) * (x0 - x2))
-        + y1 * (x - x0) * (x - x2) / ((x1 - x0) * (x1 - x2))
-        + y2 * (x - x0) * (x - x1) / ((x2 - x0) * (x2 - x1))
-}
-
-#[inline]
-fn linear(x0: f32, y0: f32, x1: f32, y1: f32, x: f32) -> f32 {
-    y0 + (y1 - y0) * (x - x0) / (x1 - x0)
-}
-
-fn interpolate_sprite_2_states(s0: &SpriteState, s1: &SpriteState, offset: f32) -> SpriteState {
+fn interpolate_with_easing(s0: &SpriteState, s1: &SpriteState, offset: f32, easing: Easing) -> SpriteState {
+    let x = (offset - s0.offset) / (s1.offset - s0.offset);
+    let ease = match easing {
+        Easing::Linear => x,
+        Easing::InCubic => x * x * x,
+        Easing::OutCubic => 1.0 - (1.0 - x).powi(3),
+        Easing::InOutCubic => if x < 0.5 {4.0 * x * x * x} else {1.0 - (-2.0 * x + 2.0).powi(3) / 2.0},
+    };
     SpriteState {
         offset,
-        x: linear(s0.offset, s0.x, s1.offset, s1.x, offset),
-        y: linear(s0.offset, s0.y, s1.offset, s1.y, offset),
-        width: linear(s0.offset, s0.width, s1.offset, s1.width, offset),
+        x: s0.x + (s1.x - s0.x) * ease,
+        y: s0.y + (s1.y - s0.y) * ease,
+        width: s0.width + (s1.width - s0.width) * ease,
         color: [
-            linear(s0.offset, s0.color[0], s1.offset, s1.color[0], offset),
-            linear(s0.offset, s0.color[1], s1.offset, s1.color[1], offset),
-            linear(s0.offset, s0.color[2], s1.offset, s1.color[2], offset),
-            linear(s0.offset, s0.color[3], s1.offset, s1.color[3], offset),
-        ]
-    }
-}
-
-fn interpolate_sprite_3_states(s0: &SpriteState, s1: &SpriteState, s2: &SpriteState, offset: f32) -> SpriteState {
-    SpriteState {
-        offset,
-        x: spline(s0.offset, s0.x, s1.offset, s1.x, s2.offset, s2.x, offset),
-        y: spline(s0.offset, s0.y, s1.offset, s1.y, s2.offset, s2.y, offset),
-        width: spline(s0.offset, s0.width, s1.offset, s1.width, s2.offset, s2.width, offset),
-        color: [
-            spline(s0.offset, s0.color[0], s1.offset, s1.color[0], s2.offset, s2.color[0], offset),
-            spline(s0.offset, s0.color[1], s1.offset, s1.color[1], s2.offset, s2.color[1], offset),
-            spline(s0.offset, s0.color[2], s1.offset, s1.color[2], s2.offset, s2.color[2], offset),
-            spline(s0.offset, s0.color[3], s1.offset, s1.color[3], s2.offset, s2.color[3], offset),
+            s0.color[0] + (s1.color[0] - s0.color[0]) * ease,
+            s0.color[1] + (s1.color[1] - s0.color[1]) * ease,
+            s0.color[2] + (s1.color[2] - s0.color[2]) * ease,
+            s0.color[3] + (s1.color[3] - s0.color[3]) * ease,
         ],
+        easing: s1.easing,
     }
 }
 
@@ -51,6 +32,7 @@ pub fn scale_sprite_state(state: &SpriteState, scale: f32) -> SpriteState {
         y: scale * state.y,
         width: scale * state.width,
         color: state.color,
+        easing: state.easing,
     }
 }
 
@@ -64,19 +46,8 @@ pub fn interpolate_state(states: &[SpriteState], offset: f32) -> Option<SpriteSt
 }
 
 fn interpolate_states(states: &[SpriteState], state_index: usize, offset: f32) -> SpriteState {
-    let i0 = if state_index > 0 { state_index - 1 } else { 0 };
-    let i1 = (i0 + 1).min(states.len() - 1);
-    let i2 = (i0 + 2).min(states.len() - 1);
-    if i0 == i1 || i1 == i2 {
-        interpolate_sprite_2_states(&states[i0], &states[i2], offset)
-    } else {
-        interpolate_sprite_3_states(
-            &states[i0],
-            &states[i1],
-            &states[i2],
-            offset,
-        )
-    }
+    let next_index = (state_index + 1).min(states.len() - 1);
+    interpolate_with_easing(&states[state_index], &states[next_index], offset, states[next_index].easing)
 }
 
 pub fn arrange_text_line(line: &SpriteTextData, cur_state: &SpriteState, font: &FontData, atlas_items: &HashMap<usize, AtlasItem>) -> Vec<Sprite> {
@@ -98,6 +69,7 @@ pub fn arrange_text_line(line: &SpriteTextData, cur_state: &SpriteState, font: &
                 x: cx + glyph.offset_x * scale,
                 y: cy + glyph.offset_y * scale,
                 width: item.origin_width as f32 * scale,
+                easing: cur_state.easing,
             };
             result.push(Sprite {
                 atlas_item: *item,
