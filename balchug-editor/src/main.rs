@@ -46,7 +46,7 @@ fn App() -> Element {
     let project_state = Rc::new(RefCell::new(ProjectState::new()));
 
     let edit_controller = SpriteEditController::new(engine.clone(), project_state.clone(), api.clone());
-    let images_controller = ResourcesController::new(api.clone(), engine.clone(), project_state.clone());
+    let resources_controller = ResourcesController::new(api.clone(), engine.clone(), project_state.clone());
 
     rsx! {
         Title { "Balchug Editor" }
@@ -54,7 +54,7 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: MAIN_CSS }
 
         Workspace {
-            images_controller,
+            resources_controller,
             edit_controller,
         }
     }

@@ -10,6 +10,7 @@ use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
 use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteData, SpriteState};
 use crate::font::font_builder::build_font;
+use crate::fps::FpsCounter;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
 use crate::scenario::{scenario_letters, scenario_max_offset, scenario_text_size};
@@ -20,6 +21,7 @@ mod inertia;
 mod scenario;
 mod font;
 mod sprite_util;
+mod fps;
 
 pub trait OffsetListener {
     fn offset_change(&mut self, offset: f32);
@@ -37,10 +39,11 @@ struct AppContext {
     font_bytes: Rc<RefCell<Vec<u8>>>,
     scenario: Rc<RefCell<Scenario>>,
     canvas_width: Rc<Cell<f32>>,
-    last_frame: Rc<Cell<instant::Instant>>,
+    last_frame: Rc<Cell<f64>>,
     touch_start_screen: Rc<Cell<f32>>,
     touch_start_scroll: Rc<Cell<f32>>,
     offset_listener: Rc<RefCell<Option<Box<dyn OffsetListener>>>>,
+    fps: Rc<RefCell<FpsCounter>>,
 }
 
 impl AppContext {
@@ -56,10 +59,11 @@ impl AppContext {
             font: Rc::new(RefCell::new(FontData::default())),
             font_bytes: Rc::new(RefCell::new(Vec::new())),
             canvas_width: Rc::new(Cell::new(canvas_width)),
-            last_frame: Rc::new(Cell::new(instant::Instant::now())),
+            last_frame: Rc::new(Cell::new(0.0)),
             touch_start_screen: Rc::new(Cell::new(0.0)),
             touch_start_scroll: Rc::new(Cell::new(0.0)),
             offset_listener: Rc::new(RefCell::new(None)),
+            fps: Rc::new(RefCell::new(FpsCounter::default())),
         }
     }
 }
@@ -163,19 +167,42 @@ impl BalchugEngine {
         self.context.scroll.borrow_mut().set_limit_up(max_scroll);
         self.context.force_rerender.set(true);
     }
+
+    pub fn get_fps(&self) -> usize {
+        self.context.fps.borrow().get_fps()
+    }
 }
 
-fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
+fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) {
+    let last_time_ms = ctx.last_frame.get();
+    let elapsed_ms = current_time_ms - last_time_ms;
+
+    // Target 60 FPS (~16.67ms per frame)
+    const FRAME_DURATION_MS: f64 = 1000.0 / 60.0;
+
+    // If the mobile screen is running at 120Hz, skip every other frame
+    // to maintain a perfectly uniform rendering cadence.
+    if elapsed_ms < FRAME_DURATION_MS {
+        return;
+    }
+
+    // Lock the delta to prevent timestamp rounding jitter from Chrome
+    // and adjust for slight fractional drift.
+    ctx.last_frame.set(current_time_ms - (elapsed_ms % FRAME_DURATION_MS));
+
+    // Convert fixed frame duration to seconds for your physics engine (0.016666)
+    let fixed_elapsed_secs = (FRAME_DURATION_MS / 1000.0) as f32;
+
     let now = instant::Instant::now();
-    let elapsed = now.duration_since(ctx.last_frame.get()).as_secs_f32();
-    ctx.last_frame.set(now);
+
+    let (updated, offset) = ctx.scroll.borrow_mut().live(fixed_elapsed_secs);
+    if !updated && !ctx.force_rerender.get() {
+        ctx.fps.borrow_mut().new_frame(now, false);
+        return;
+    }
 
     let width = ctx.canvas_width.get();
-    let (updated, offset) = ctx.scroll.borrow_mut().live(elapsed);
     let scaled_offset = offset / width;
-    if !updated && !ctx.force_rerender.get() {
-        return (Vec::new(), Vec::new());
-    }
     if let Some(listener) = ctx.offset_listener.borrow_mut().as_mut() {
         listener.offset_change(scaled_offset)
     }
@@ -183,7 +210,7 @@ fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     let (mut sprites, mut text_sprites) = (Vec::new(), Vec::new());
 
     for sprite_animation in &scenario.sprites {
-        if let Some(cur_state) = interpolate_state(&sprite_animation.states, scaled_offset) && cur_state.color[3] > 0.01 {
+        if let Some(cur_state) = interpolate_state(&sprite_animation.states, scaled_offset) && cur_state.color[3] > 0.001 {
             match &sprite_animation.data {
                 SpriteData::Image(image_data) => {
                     sprites.push(Sprite {
@@ -205,9 +232,12 @@ fn animate_scene(ctx: &AppContext) -> (Vec<Sprite>, Vec<Sprite>) {
     }
 
     if !sprites.is_empty() && !ctx.images_texture_ready.get() || !text_sprites.is_empty() && !ctx.txt_texture_ready.get() {
-        (vec![], vec![])
+        // some texture is not ready yet
+        ctx.fps.borrow_mut().new_frame(now, false);
     } else {
-        (sprites, text_sprites)
+        ctx.fps.borrow_mut().new_frame(now, true);
+        renderer.render(&sprites, &text_sprites);
+        ctx.force_rerender.set(false);
     }
 }
 
@@ -223,16 +253,10 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement) -> BalchugEngine 
 
     let ctx = AppContext::new(width as f32);
 
-    let render = {
-        let ctx = ctx.clone();
-        let renderer = renderer.clone();
-        move || {
-            let (sprites, text_sprites) = animate_scene(&ctx);
-            if !sprites.is_empty() || !text_sprites.is_empty() || ctx.force_rerender.get() {
-                renderer.render(&sprites, &text_sprites);
-                ctx.force_rerender.set(false);
-            }
-        }
+    let ctx_clone = ctx.clone();
+    let renderer_clone = renderer.clone();
+    let render = move |timestamp: f64| {
+        animate_scene(&ctx_clone, &renderer_clone, timestamp);
     };
 
     let options = AddEventListenerOptions::new();
@@ -358,12 +382,14 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement) -> BalchugEngine 
     ).unwrap();
     on_mouse_up.forget();
 
-    let on_frame: Rc<RefCell<Closure<dyn FnMut()>>> = Rc::new(RefCell::new(Closure::wrap(Box::new(move || {}))));
+    let on_frame = Rc::new(RefCell::new(
+        Closure::wrap(Box::new(move |_| {}) as Box<dyn FnMut(f64)>)
+    ));
     let on_frame_clone = on_frame.clone();
     let render_clone = render.clone();
     let window_clone = window.clone();
-    *on_frame.borrow_mut() = Closure::wrap(Box::new(move || {
-        render_clone();
+    *on_frame.borrow_mut() = Closure::wrap(Box::new(move |timestamp| {
+        render_clone(timestamp);
         if let Err(err) = window_clone.request_animation_frame(on_frame_clone.borrow().as_ref().unchecked_ref()) {
             error!("Request animation frame failed: {err:?}");
         }

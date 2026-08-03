@@ -33,7 +33,11 @@ impl SpriteEditController {
     pub fn new(engine: Rc<RefCell<Option<BalchugEngine>>>, project_state: Rc<RefCell<ProjectState>>, api: API) -> Self {
         let state = Signal::new(Option::<SpriteEditorState>::None);
         let state_memo = use_memo(move || state.read().cloned());
-        Self {
+        let ps0 = project_state.clone();
+        let ps1 = project_state.clone();
+        let selected_sprite = use_memo(move || *ps0.borrow().selected_sprite.read());
+        
+        let controller = Self {
             state,
             state_memo,
             engine,
@@ -41,7 +45,16 @@ impl SpriteEditController {
             api,
             preview_offset_listener: PreviewOffsetListener::default(),
             canvas_rect: Rc::new(Cell::new(F32Rect::default())),
-        }
+        };
+        let mut c0 = controller.clone();
+        use_effect(move || {
+            if let Some(sprite_id) = *selected_sprite.read() {
+                c0.set_timeline_sprite(sprite_id);
+                ps1.borrow_mut().unselect_sprite();
+            }
+        });
+        
+        controller
     }
 
     pub fn start(&self, window: Window, canvas: HtmlCanvasElement) {

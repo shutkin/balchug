@@ -209,12 +209,9 @@ pub fn TextLine(controller: ResourcesController) -> Element {
                         select {
                             id: "text_size_select",
                             name: "size",
-                            option {"10"}
-                            option {"12"}
-                            option {"14"}
-                            option {"16"}
-                            option {"18"}
-                            option {"20"}
+                            for i in 0..20 {
+                                option {"{i + 10}"}
+                            }
                         }
                     }
                 }

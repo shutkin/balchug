@@ -6,11 +6,11 @@ use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
-use crate::components::images::{ImagesBank, SpriteDialog, TextLine};
+use crate::components::resources::{ImagesBank, SpriteDialog, TextLine};
 use crate::controllers::resources::ResourcesController;
 
 #[component]
-pub fn Workspace(images_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
+pub fn Workspace(resources_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
     rsx! {
         main {
             id: "workspace_main",
@@ -18,7 +18,7 @@ pub fn Workspace(images_controller: ResourcesController, edit_controller: Sprite
             BalchugPreview {controller: edit_controller.clone()},
             Sidebar {
                 edit_controller: edit_controller.clone(),
-                images_controller: images_controller.clone(),
+                resources_controller: resources_controller.clone(),
             },
         }
     }
@@ -28,6 +28,11 @@ pub fn Workspace(images_controller: ResourcesController, edit_controller: Sprite
 pub fn BalchugPreview(controller: SpriteEditController) -> Element {
     let c0 = controller.clone();
     let c1 = controller.clone();
+    let c2 = controller.clone();
+
+    let status_class = use_memo(move || {
+        if c2.is_edit_mode() {"status-dot-inactive"} else {"status-dot"}
+    });
 
     rsx! {
         section {
@@ -37,7 +42,7 @@ pub fn BalchugPreview(controller: SpriteEditController) -> Element {
                 id: "balchug_preview_status_div",
                 class: "canvas-status",
                 span {
-                    class: "status-dot",
+                    class: "{status_class}",
                 }
                 span { "Live Viewport: 16:9 Horizontal" }
             }
@@ -65,8 +70,9 @@ pub fn BalchugPreview(controller: SpriteEditController) -> Element {
 }
 
 #[component]
-pub fn Sidebar(images_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
-    let mut cur_tab = use_signal(move || 0_u8);
+pub fn Sidebar(resources_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
+    let rc0 = resources_controller.clone();
+    let rc1 = resources_controller.clone();
 
     rsx! {
         aside {
@@ -77,19 +83,19 @@ pub fn Sidebar(images_controller: ResourcesController, edit_controller: SpriteEd
                 class: "tab-navigation",
                 button {
                     id: "sidebar_btn_props",
-                    class: format!("tab-btn{}", if *cur_tab.read() == 0 {" active"} else {""}),
-                    onclick: move |_| {cur_tab.set(0);},
+                    class: format!("tab-btn{}", if rc0.get_cur_tab() == 0 {" active"} else {""}),
+                    onclick: move |_| {rc0.set_cur_tab(0);},
                     "Resources"
                 }
                 button {
                     id: "sidebar_btn_timeline",
-                    class: format!("tab-btn{}", if *cur_tab.read() == 1 {" active"} else {""}),
-                    onclick: move |_| {cur_tab.set(1);},
+                    class: format!("tab-btn{}", if rc1.get_cur_tab() == 1 {" active"} else {""}),
+                    onclick: move |_| {rc1.set_cur_tab(1);},
                     "Timeline"
                 }
             }
-            match *cur_tab.read() {
-                0 => rsx! {ResourcesPanel {controller: images_controller.clone()}},
+            match rc0.get_cur_tab() {
+                0 => rsx! {ResourcesPanel {controller: resources_controller.clone()}},
                 _ => rsx! {TimelinePanel {controller: edit_controller.clone()}},
             }
         }

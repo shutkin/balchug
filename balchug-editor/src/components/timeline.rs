@@ -5,7 +5,7 @@ use dioxus::web::WebEventExt;
 use balchug_common::sprite::SpriteState;
 use crate::controllers::sprite_editor::SpriteEditController;
 
-const LAYER_WIDTH: i32 = 20;
+const LAYER_WIDTH: i32 = 24;
 
 #[derive(Copy, Clone, PartialEq)]
 struct TimeLineView {
@@ -123,7 +123,7 @@ fn SpriteControl(i: usize, title: String, controller: SpriteEditController) -> E
         div {
             id: "sprite_{i}_control",
             class: "timeline-sprite-control",
-            style: "width:{LAYER_WIDTH}px",
+            style: "width:{LAYER_WIDTH - 4}px",
             button {
                 id: "sprite_{i}_remove",
                 class: "btn-small btn-danger",
@@ -155,7 +155,7 @@ fn find_point(data: &MouseData, points: &[TimeLinePoint]) -> Option<TimeLinePoin
 fn wheel_offset_factor(data: &WheelData) -> f32 {
     match data.delta() {
         WheelDelta::Pixels(pixels) => {
-            0.1 * pixels.y as f32
+            0.2 * pixels.y as f32
         }
         WheelDelta::Lines(lines) => {
             1.0 * lines.y as f32
@@ -169,7 +169,7 @@ fn wheel_offset_factor(data: &WheelData) -> f32 {
 fn wheel_zoom_factor(data: &WheelData) -> f32 {
     match data.delta() {
         WheelDelta::Pixels(pixels) => {
-            1.0 + 0.001 * pixels.y as f32
+            1.0 + 0.002 * pixels.y as f32
         }
         WheelDelta::Lines(lines) => {
             1.0 + 0.0075 * lines.y as f32
@@ -277,10 +277,10 @@ fn build_path_d(states: &[SpriteState], index: usize, view: TimeLineView, mut po
             down = point.svg_y;
             down_is_closed = point.state_index == states.len() - 1;
         }
-        marks.push(format!("M{},{} h10", index * 20 + 5, point.svg_y as i32));
+        marks.push(format!("M{},{} h10", x - 5, point.svg_y as i32));
     }
     let marks = marks.join(" ");
     up = if up_is_closed {up} else {0.0};
     down = if down_is_closed {down} else {view.height};
-    format!("M{},{} v{} {marks} z", index * 20 + 10, up, down - up)
+    format!("M{},{} v{} {marks} z", x, up, down - up)
 }

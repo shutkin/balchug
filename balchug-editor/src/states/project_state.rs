@@ -20,6 +20,8 @@ impl Default for SpriteProperties {
 pub struct ProjectState {
     pub aspect_ratio: Store<f32>,
     pub sprite_properties: Store<HashMap<usize, SpriteProperties>>,
+    pub cur_tab: Signal<usize>,
+    pub selected_sprite: Signal<Option<usize>>,
 }
 
 impl ProjectState {
@@ -27,6 +29,8 @@ impl ProjectState {
         Self {
             aspect_ratio: Store::new(9.0 / 16.0),
             sprite_properties: Store::new(HashMap::new()),
+            cur_tab: Signal::new(0),
+            selected_sprite: Signal::new(None),
         }
     }
     
@@ -39,5 +43,14 @@ impl ProjectState {
         self.sprite_properties.with_mut(move |map| {
             map.insert(sprite_id, properties);
         });
+    }
+    
+    pub fn select_sprite(&mut self, sprite_id: usize) {
+        self.selected_sprite.set(Some(sprite_id));
+        self.cur_tab.set(1);
+    }
+    
+    pub fn unselect_sprite(&mut self) {
+        self.selected_sprite.set(None);
     }
 }

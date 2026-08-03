@@ -156,7 +156,7 @@ impl GlRenderer {
     }
 
     pub fn render(&self, sprites: &[Sprite], txt_sprites: &[Sprite]) {
-        self.gl.clear_color(1.0, 1.0, 1.0, 1.0);
+        self.gl.clear_color(0.0, 0.0, 0.0, 1.0);
         self.gl.clear(GL::COLOR_BUFFER_BIT);
 
         if !sprites.is_empty() {

@@ -6,4 +6,4 @@ pub mod workspace;
 pub mod timeline;
 mod state_editor;
 mod overlay;
-mod images;
+mod resources;

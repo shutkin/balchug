@@ -88,6 +88,7 @@ impl ResourcesController {
             sprites.push(animation);
             engine.set_scenario(sprites);
             self.project_state.borrow_mut().add_sprite_properties(sprite_id, props);
+            self.project_state.borrow_mut().select_sprite(sprite_id);
         }
     }
 
@@ -105,15 +106,23 @@ impl ResourcesController {
             x: 0.0,
             y: start_y,
             width: 1.0,
-            color: [0.0, 0.0, 0.0, 1.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         };
         let state_one = SpriteState {
             offset: end_offset,
             x: 0.0,
             y: end_y,
             width: 1.0,
-            color: [0.0, 0.0, 0.0, 1.0],
+            color: [1.0, 1.0, 1.0, 1.0],
         };
         vec![state_zero, state_one]
+    }
+    
+    pub fn get_cur_tab(&self) -> usize {
+        *self.project_state.borrow().cur_tab.read()
+    }
+    
+    pub fn set_cur_tab(&self, tab: usize) {
+        self.project_state.borrow_mut().cur_tab.set(tab);
     }
 }

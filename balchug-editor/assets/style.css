@@ -188,6 +188,13 @@ body {
     border-radius: 50%;
 }
 
+.status-dot-inactive {
+    width: 8px;
+    height: 8px;
+    background-color: var(--accent-danger);
+    border-radius: 50%;
+}
+
 .mobile-frame {
     height: 100%;
     aspect-ratio: 9 / 16;
@@ -239,17 +246,19 @@ body {
     display: flex;
     flex-direction: row;
     margin-bottom: 8px;
+    gap: 4px;
 }
 
 .timeline-sprite-control {
-    display: block;
-    gap: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .timeline-sprite-title {
     writing-mode: vertical-rl;
     cursor: pointer;
-    font-size: 11px;
+    font-size: 13px;
     color: var(--text-muted);
 }
 

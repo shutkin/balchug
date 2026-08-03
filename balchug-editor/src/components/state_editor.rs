@@ -1,5 +1,4 @@
 use dioxus::prelude::*;
-use balchug_common::sprite::SpriteState;
 use crate::controllers::sprite_editor::SpriteEditController;
 use crate::states::sprite_editor::SpriteEditorState;
 
@@ -12,7 +11,8 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
         let mut c3 = controller.clone();
 
         let mut apply_fn = move |values: Vec<(String, FormValue)>| {
-            let mut state = SpriteState::default();
+            let mut state = c0.get_cur_state()
+                .map(|s| s.original_sprite_state).unwrap_or_default();
             for (name, value) in values {
                 let v = match value {
                     FormValue::Text(txt) => txt.parse::<f32>().unwrap_or(f32::NAN),
