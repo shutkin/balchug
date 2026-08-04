@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::fmt::Write;
 use balchug_common::atlas::{Atlas, AtlasItem};
-use balchug_common::sprite::{SpriteAnimation, SpriteData};
+use balchug_common::sprite::{Easing, SpriteAnimation, SpriteData, SpriteState};
 use crate::CommonError;
 
 pub fn create_atlas() ->Atlas{
@@ -40,7 +40,7 @@ pub fn atlas_to_code(atlas: &Atlas) -> Result<String, CommonError> {
 pub fn animations_to_code(animations: &[SpriteAnimation]) -> Result<String, CommonError> {
     let mut code = String::new();
 
-    code.push_str("use balchug_common::sprite::{SpriteAnimation,SpriteState,SpriteData,SpriteImageData,SpriteTextData};\n");
+    code.push_str("use balchug_common::sprite::{SpriteAnimation,SpriteState,SpriteData,SpriteImageData,SpriteTextData,Easing};\n");
     code.push_str("pub fn create_animations()->Vec<SpriteAnimation>{vec![");
 
     for a in animations {
@@ -68,12 +68,13 @@ pub fn animations_to_code(animations: &[SpriteAnimation]) -> Result<String, Comm
         for st in &a.states {
             write!(
                 code,
-                "SpriteState{{offset:{:?},x:{:?},y:{:?},width:{:?},color:{:?}}},",
+                "SpriteState{{offset:{:?},x:{:?},y:{:?},width:{:?},color:{:?},easing:{}}},",
                 st.offset,
                 st.x,
                 st.y,
                 st.width,
-                st.color
+                st.color,
+                easing(st)
             )?;
         }
         code.push_str("]},");
@@ -81,4 +82,13 @@ pub fn animations_to_code(animations: &[SpriteAnimation]) -> Result<String, Comm
 
     code.push_str("]}\n");
     Ok(code)
+}
+
+fn easing(st: &SpriteState) -> &str {
+    match st.easing {
+        Easing::Linear => "Easing::Linear",
+        Easing::InCubic => "Easing::InCubic",
+        Easing::OutCubic => "Easing::OutCubic",
+        Easing::InOutCubic => "Easing::InOutCubic",
+    }
 }
