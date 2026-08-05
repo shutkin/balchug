@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use balchug_common::atlas::{AtlasItem, FontData};
-use balchug_common::sprite::{Sprite, SpriteState, SpriteTextData};
+use balchug_common::sprite::{Easing, Sprite, SpriteState, SpriteTextData};
 
 #[inline]
 fn spline(x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32, x: f32) -> f32 {
@@ -25,7 +25,8 @@ fn interpolate_sprite_2_states(s0: &SpriteState, s1: &SpriteState, offset: f32) 
             linear(s0.offset, s0.color[1], s1.offset, s1.color[1], offset),
             linear(s0.offset, s0.color[2], s1.offset, s1.color[2], offset),
             linear(s0.offset, s0.color[3], s1.offset, s1.color[3], offset),
-        ]
+        ],
+        easing: Easing::default(),
     }
 }
 
@@ -41,6 +42,7 @@ fn interpolate_sprite_3_states(s0: &SpriteState, s1: &SpriteState, s2: &SpriteSt
             spline(s0.offset, s0.color[2], s1.offset, s1.color[2], s2.offset, s2.color[2], offset),
             spline(s0.offset, s0.color[3], s1.offset, s1.color[3], s2.offset, s2.color[3], offset),
         ],
+        easing: Easing::default(),
     }
 }
 
@@ -51,6 +53,7 @@ pub fn scale_sprite_state(state: &SpriteState, scale: f32) -> SpriteState {
         y: scale * state.y,
         width: scale * state.width,
         color: state.color,
+        easing: Easing::default(),
     }
 }
 
@@ -98,6 +101,7 @@ pub fn arrange_text_line(line: &SpriteTextData, cur_state: &SpriteState, font: &
                 x: cx + glyph.offset_x * scale,
                 y: cy + glyph.offset_y * scale,
                 width: item.origin_width as f32 * scale,
+                easing: Easing::default(),
             };
             result.push(Sprite {
                 atlas_item: *item,

@@ -1,7 +1,8 @@
 use std::collections::HashMap;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy, Serialize, Deserialize, Debug)]
+#[derive(Clone, Copy, Serialize, Deserialize, Debug, Hash)]
 pub struct AtlasItem {
     pub id: usize,
     pub x: u32,
@@ -17,6 +18,18 @@ pub struct Atlas {
     pub width: u32,
     pub height: u32,
     pub items: HashMap<usize, AtlasItem>,
+}
+
+impl Atlas {
+    pub fn hash(&self) -> String {
+        let mut hasher = DefaultHasher::new();
+        let mut items = self.items.values().cloned().collect::<Vec<_>>();
+        items.sort_by_key(|a| a.id);
+        for item in items {
+            item.hash(&mut hasher);
+        }
+        format!("{:x}", hasher.finish())
+    }
 }
 
 pub struct FontGlyph {

@@ -276,6 +276,7 @@ impl SpriteEditController {
                 y: (new_rect.y - canvas_rect.y) / canvas_rect.width,
                 width: new_rect.width / canvas_rect.width,
                 color: sprite_state.color,
+                easing: Default::default(),
             };
             Self::apply_states_change(&state.timeline_points, &mut animation.states,
                                       new_sprite_state, state.parallax_factor);
@@ -313,6 +314,7 @@ impl SpriteEditController {
             y: start_y,
             width: cur_state.width,
             color: cur_state.color,
+            easing: Default::default(),
         };
         let last_state = SpriteState {
             offset: end_offset,
@@ -320,6 +322,7 @@ impl SpriteEditController {
             y: end_y,
             width: cur_state.width,
             color: cur_state.color,
+            easing: Default::default(),
         };
         (first_state, last_state)
     }
@@ -339,6 +342,7 @@ impl SpriteEditController {
                 y: new_state.y + dy,
                 width: new_state.width,
                 color: new_state.color,
+                easing: Default::default(),
             };
             states[index] = modified_state;
         }

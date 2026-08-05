@@ -107,6 +107,7 @@ impl ResourcesController {
             y: start_y,
             width: 1.0,
             color: [1.0, 1.0, 1.0, 1.0],
+            easing: Default::default(),
         };
         let state_one = SpriteState {
             offset: end_offset,
@@ -114,6 +115,7 @@ impl ResourcesController {
             y: end_y,
             width: 1.0,
             color: [1.0, 1.0, 1.0, 1.0],
+            easing: Default::default(),
         };
         vec![state_zero, state_one]
     }

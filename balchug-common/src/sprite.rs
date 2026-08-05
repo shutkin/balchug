@@ -1,6 +1,17 @@
 use serde::{Deserialize, Serialize};
 use crate::atlas::AtlasItem;
 
+#[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub enum Easing {
+    Linear, InCubic, OutCubic, InOutCubic,
+}
+
+impl Default for Easing {
+    fn default() -> Self {
+        Easing::Linear
+    }
+}
+
 #[derive(Copy, Clone)]
 pub struct Sprite {
     pub state: SpriteState,
@@ -14,6 +25,7 @@ pub struct SpriteState {
     pub y: f32,
     pub width: f32,
     pub color: [f32; 4],
+    pub easing: Easing,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
