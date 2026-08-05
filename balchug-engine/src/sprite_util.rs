@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::f32::consts::PI;
 use balchug_common::atlas::{AtlasItem, FontData};
 use balchug_common::sprite::{Easing, Sprite, SpriteState, SpriteTextData};
 
@@ -6,6 +7,9 @@ fn interpolate_with_easing(s0: &SpriteState, s1: &SpriteState, offset: f32, easi
     let x = (offset - s0.offset) / (s1.offset - s0.offset);
     let ease = match easing {
         Easing::Linear => x,
+        Easing::InSine => 1.0 - (x * PI / 2.0).cos(),
+        Easing::OutSine => (x * PI / 2.0).sin(),
+        Easing::InOutSine => -((x * PI).cos() - 1.0) / 2.0,
         Easing::InCubic => x * x * x,
         Easing::OutCubic => 1.0 - (1.0 - x).powi(3),
         Easing::InOutCubic => if x < 0.5 {4.0 * x * x * x} else {1.0 - (-2.0 * x + 2.0).powi(3) / 2.0},

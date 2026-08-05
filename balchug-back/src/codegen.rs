@@ -90,5 +90,8 @@ fn easing(st: &SpriteState) -> &str {
         Easing::InCubic => "Easing::InCubic",
         Easing::OutCubic => "Easing::OutCubic",
         Easing::InOutCubic => "Easing::InOutCubic",
+        Easing::InSine => "Easing::InSine",
+        Easing::OutSine => "Easing::OutSine",
+        Easing::InOutSine => "Easing::InOutSine",
     }
 }

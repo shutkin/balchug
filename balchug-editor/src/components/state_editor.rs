@@ -24,6 +24,7 @@ fn map_easing_to_str(easing: Easing) -> &'static str {
         Easing::InCubic => EASING_INCUBIC,
         Easing::OutCubic => EASING_OUTCUBIC,
         Easing::InOutCubic => EASING_INOUTCUBIC,
+        _ => EASING_LINEAR,
     }
 }
 

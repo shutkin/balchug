@@ -9,7 +9,7 @@ pub struct Sprite {
 
 #[derive(Copy, Clone, Debug, Serialize, Deserialize, PartialEq)]
 pub enum Easing {
-    Linear, InCubic, OutCubic, InOutCubic,
+    Linear, InSine, OutSine, InOutSine, InCubic, OutCubic, InOutCubic,
 }
 
 impl Default for Easing {
