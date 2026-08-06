@@ -8,7 +8,7 @@ use actix_cors::Cors;
 use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::web::PayloadConfig;
 use actix_web::{App, HttpServer, Responder, get, http, post, web};
-use balchug_common::api::{AddImageResponse, StartProjectResponse, UpdateScenarioRq};
+use balchug_common::api::{AddImageResponse, OpenProjectResponse, StartProjectResponse, UpdateScenarioRq, UpdateSpritesPropsRq};
 use log::info;
 
 pub type CommonError = Box<dyn std::error::Error + Send + Sync>;
@@ -57,8 +57,20 @@ async fn upload_image(
     Ok(web::Json(AddImageResponse { thumbs, atlas }))
 }
 
+#[post("/{id}/sprites")]
+async fn update_sprites_props(path: web::Path<String>, server: web::Data<Server>, rq: web::Json<UpdateSpritesPropsRq>)
+    -> Result<String, actix_web::Error> {
+    let id = path.into_inner();
+    let project = server
+        .get_project(&id)
+        .ok_or(ErrorNotFound("Project not found"))?;
+    info!("Project {} scenario update", id);
+    server.update_sprite_props(project, &rq.sprites_properties).map_err(ErrorInternalServerError)?;
+    Ok(String::from("OK"))
+}
+
 #[post("/{id}/scenario")]
-async fn scenario(path: web::Path<String>, server: web::Data<Server>, rq: web::Json<UpdateScenarioRq>)
+async fn update_scenario(path: web::Path<String>, server: web::Data<Server>, rq: web::Json<UpdateScenarioRq>)
     -> Result<String, actix_web::Error> {
     let id = path.into_inner();
     let project = server
@@ -67,6 +79,22 @@ async fn scenario(path: web::Path<String>, server: web::Data<Server>, rq: web::J
     info!("Project {} scenario update", id);
     server.update_scenario(project, &rq.scenario).map_err(ErrorInternalServerError)?;
     Ok(String::from("OK"))
+}
+
+#[get("/{id}/project")]
+async fn get_project(path: web::Path<String>, server: web::Data<Server>)
+    -> Result<web::Json<OpenProjectResponse>, actix_web::Error> {
+    let id = path.into_inner();
+    let project = server
+        .get_project(&id)
+        .ok_or(ErrorNotFound("Project not found"))?;
+    let resp = OpenProjectResponse {
+        images_thumbs: project.thumbs,
+        atlas: project.images_atlas,
+        scenario: project.scenario,
+        sprites_properties: project.sprite_properties,
+    };
+    Ok(web::Json(resp))
 }
 
 #[tokio::main]
@@ -87,7 +115,9 @@ async fn main() -> std::io::Result<()> {
             .service(start)
             .service(assets)
             .service(upload_image)
-            .service(scenario)
+            .service(update_sprites_props)
+            .service(update_scenario)
+            .service(get_project)
     })
     .bind(("0.0.0.0", port))?
     .run()

@@ -14,14 +14,16 @@ use crate::fps::FpsCounter;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
 use crate::scenario::{scenario_letters, scenario_max_offset, scenario_text_size};
+use crate::settings::Settings;
 use crate::sprite_util::{arrange_text_line, interpolate_state, scale_sprite_state};
 
-pub mod gl;
+mod gl;
 mod inertia;
 mod scenario;
 mod font;
 mod sprite_util;
 mod fps;
+pub mod settings;
 
 pub trait OffsetListener {
     fn offset_change(&mut self, offset: f32);
@@ -29,6 +31,7 @@ pub trait OffsetListener {
 
 #[derive(Clone)]
 struct AppContext {
+    settings: Settings,
     force_rerender: Rc<Cell<bool>>,
     scroll: Rc<RefCell<Inertia>>,
     images_texture_ready: Rc<Cell<bool>>,
@@ -47,8 +50,9 @@ struct AppContext {
 }
 
 impl AppContext {
-    fn new(canvas_width: f32) -> Self {
+    fn new(canvas_width: f32, settings: Settings) -> Self {
         AppContext {
+            settings,
             force_rerender: Rc::new(Cell::new(false)),
             scroll: Rc::new(RefCell::new(Inertia::new(0.0))),
             images_texture_ready: Rc::new(Cell::new(false)),
@@ -134,8 +138,8 @@ impl BalchugEngine {
         }
     }
 
-    pub fn interpolate_state(states: &[SpriteState], offset: f32) -> Option<SpriteState> {
-        interpolate_state(states, offset)
+    pub fn interpolate_state(animation: &SpriteAnimation, offset: f32) -> Option<SpriteState> {
+        interpolate_state(animation, offset)
     }
     
     pub fn get_atlas_item(&self, id: usize) -> Option<AtlasItem> {
@@ -210,7 +214,8 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
     let (mut sprites, mut text_sprites) = (Vec::new(), Vec::new());
 
     for sprite_animation in &scenario.sprites {
-        if let Some(cur_state) = interpolate_state(&sprite_animation.states, scaled_offset) && cur_state.color[3] > 0.001 {
+        if let Some(cur_state) = interpolate_state(&sprite_animation, scaled_offset)
+            && cur_state.color[3] > 0.001 {
             match &sprite_animation.data {
                 SpriteData::Image(image_data) => {
                     sprites.push(Sprite {
@@ -241,17 +246,17 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
     }
 }
 
-pub fn start_engine(window: Window, canvas: HtmlCanvasElement) -> BalchugEngine {
+pub fn start_engine(window: Window, canvas: HtmlCanvasElement, settings: Settings) -> BalchugEngine {
     wasm_logger::init(wasm_logger::Config::default());
 
     let pixel_ratio = window.device_pixel_ratio().max(2.0);
 
     let gl = canvas.get_context("webgl2").unwrap().unwrap().dyn_into::<WebGl2RenderingContext>().unwrap();
-    let renderer = GlRenderer::init(gl).unwrap();
+    let renderer = GlRenderer::init(gl, settings.background_color).unwrap();
     let (width, height) = (canvas.width(), canvas.height());
     renderer.set_sizes(width as f32, height as f32);
 
-    let ctx = AppContext::new(width as f32);
+    let ctx = AppContext::new(width as f32, settings);
 
     let ctx_clone = ctx.clone();
     let renderer_clone = renderer.clone();

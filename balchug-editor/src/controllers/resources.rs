@@ -1,19 +1,21 @@
-use crate::controllers::api::API;
+use crate::controllers::api::Api;
 use balchug_engine::BalchugEngine;
 use dioxus::html::FileData;
 use dioxus::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
-use balchug_common::sprite::{SpriteAnimation, SpriteImageData, SpriteData, SpriteState, SpriteTextData, Easing};
+use balchug_common::atlas::Atlas;
+use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState, Easing};
 use crate::states::project_state::{ProjectState, SpriteProperties};
 
 #[derive(Clone)]
 pub struct ResourcesController {
-    api: API,
+    api: Api,
     thumbs: Signal<Vec<String>>,
     engine: Rc<RefCell<Option<BalchugEngine>>>,
     project_state: Rc<RefCell<ProjectState>>,
     sprite_id: Signal<Option<usize>>,
+    text_edit_open: Signal<bool>,
 }
 
 impl PartialEq for ResourcesController {
@@ -23,13 +25,14 @@ impl PartialEq for ResourcesController {
 }
 
 impl ResourcesController {
-    pub fn new(api: API, engine: Rc<RefCell<Option<BalchugEngine>>>, project_state: Rc<RefCell<ProjectState>>) -> Self {
+    pub fn new(api: Api, engine: Rc<RefCell<Option<BalchugEngine>>>, project_state: Rc<RefCell<ProjectState>>) -> Self {
         Self {
             api,
             engine,
             project_state,
             thumbs: Default::default(),
             sprite_id: Signal::new(None),
+            text_edit_open: Signal::new(false),
         }
     }
     
@@ -37,8 +40,12 @@ impl ResourcesController {
         self.thumbs.read().clone()
     }
     
-    pub fn get_sprite_id_signal(&self) -> Signal<Option<usize>> {
+    pub fn get_image_id_signal(&self) -> Signal<Option<usize>> {
         self.sprite_id
+    }
+
+    pub fn get_text_edit_open(&self) -> Signal<bool> {
+        self.text_edit_open
     }
     
     pub async fn handle_upload(&mut self, files: Vec<FileData>) {
@@ -49,46 +56,55 @@ impl ResourcesController {
                 None => "application/octet-stream", // Safe fallback
             };
             if let Some((new_thumbs, atlas)) = self.api.upload_image(bytes, mime_type).await {
-                self.thumbs.set(new_thumbs);
-                if let Some(engine) = self.engine.borrow().as_ref() {
-                    let now = instant::now().round() as u64;
-                    let img_url = self.api.asset_url("atlas.webp");
-                    engine.set_atlas(&format!("{img_url}?{now}"), atlas);
-                }
+                self.update_image_resources(new_thumbs, atlas);
             }
         }
     }
 
-    pub fn put_image(&self, image_id: usize, props: SpriteProperties) {
-        let data = SpriteData::Image(SpriteImageData{ atlas_item_id: image_id });
-        let proportion = self.engine.borrow().as_ref()
-            .and_then(|engine| engine.get_atlas_item(image_id))
-            .map(|item| item.origin_width as f32 / item.origin_height as f32)
-            .unwrap_or(1.0);
-        self.add_sprite_animation(data, proportion, props);
-    }
-
-    pub fn put_text(&self, text: String, size: i32, props: SpriteProperties) {
-        let relative_height = size as f32 * 0.002;
-        let data = SpriteData::Text(SpriteTextData{ text, relative_height });
-        self.add_sprite_animation(data, 1.0 / relative_height, props);
-    }
-
-    fn add_sprite_animation(&self, data: SpriteData, proportion: f32, props: SpriteProperties) {
+    pub fn update_image_resources(&mut self, new_thumbs: Vec<String>, atlas: Atlas) {
+        self.thumbs.set(new_thumbs.iter().map(|thumb| self.api.assets_url(thumb)).collect());
         if let Some(engine) = self.engine.borrow().as_ref() {
+            let now = instant::now().round() as u64;
+            let img_url = self.api.assets_url("atlas.webp");
+            engine.set_atlas(&format!("{img_url}?{now}"), atlas);
+        }
+    }
+
+    pub fn add_new_sprite_animation(&self, template: SpriteAnimation, props: SpriteProperties) {
+        if let Some(engine) = self.engine.borrow().as_ref() {
+            let proportion = match &template.data {
+                SpriteData::Image(data) => {
+                    engine.get_atlas_item(data.atlas_item_id)
+                        .map(|item| item.origin_width as f32 / item.origin_height as f32)
+                        .unwrap_or(1.0)
+                },
+                SpriteData::Text(data) => {
+                    1.0 / data.relative_height
+                },
+            };
+
             let mut sprites = engine.get_sprites_animations(None);
             let sprite_id = sprites.len();
             let cur_offset = engine.get_offset();
             let aspect_ratio = *self.project_state.borrow().aspect_ratio.read();
             let animation = SpriteAnimation {
                 sprite_id,
-                data,
+                data: template.data,
+                smooth_factor: template.smooth_factor,
                 states: Self::create_default_animation(cur_offset, aspect_ratio, proportion, props.parallax_factor),
             };
             sprites.push(animation);
             engine.set_scenario(sprites);
-            self.project_state.borrow_mut().add_sprite_properties(sprite_id, props);
+            let props = self.project_state.borrow_mut().add_sprite_properties(sprite_id, props);
             self.project_state.borrow_mut().select_sprite(sprite_id);
+            let api_clone = self.api.clone();
+            use_future(move || {
+                let api = api_clone.clone();
+                let props = props.clone();
+                async move {
+                    api.update_sprites_props(props).await;
+                }
+            });
         }
     }
 

@@ -39,10 +39,11 @@ impl ProjectState {
             .get(&sprite_id).cloned().unwrap_or_default()
     }
 
-    pub fn add_sprite_properties(&mut self, sprite_id: usize, properties: SpriteProperties) {
+    pub fn add_sprite_properties(&mut self, sprite_id: usize, properties: SpriteProperties) -> HashMap<usize, SpriteProperties> {
         self.sprite_properties.with_mut(move |map| {
             map.insert(sprite_id, properties);
-        });
+            map.clone()
+        })
     }
     
     pub fn select_sprite(&mut self, sprite_id: usize) {

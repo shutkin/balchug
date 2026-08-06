@@ -44,7 +44,7 @@ pub fn animations_to_code(animations: &[SpriteAnimation]) -> Result<String, Comm
     code.push_str("pub fn create_animations()->Vec<SpriteAnimation>{vec![");
 
     for a in animations {
-        write!(code, "SpriteAnimation{{sprite_id:{},data:", a.sprite_id)?;
+        write!(code, "SpriteAnimation{{sprite_id:{},smooth_factor{:?},data:", a.sprite_id, a.smooth_factor)?;
 
         match &a.data {
             SpriteData::Image(img) => {

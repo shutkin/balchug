@@ -4,12 +4,13 @@ use crate::states::sprite_editor::SpriteEditorState;
 use balchug_engine::{start_engine, BalchugEngine, OffsetListener};
 use dioxus::prelude::*;
 use std::rc::Rc;
+use gloo_timers::future::TimeoutFuture;
 use web_sys::{HtmlCanvasElement, Window};
 use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
 use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState};
 use crate::components::timeline::{TimeLinePoint, TimeLinePoints};
-use crate::controllers::api::API;
+use crate::controllers::api::Api;
 use crate::states::project_state::ProjectState;
 
 #[derive(Clone)]
@@ -20,7 +21,7 @@ pub struct SpriteEditController {
     preview_offset_listener: PreviewOffsetListener,
     canvas_rect: Rc<Cell<F32Rect>>,
     project_state: Rc<RefCell<ProjectState>>,
-    api: API,
+    scenario_updated: Rc<Cell<bool>>,
 }
 
 impl PartialEq for SpriteEditController {
@@ -30,21 +31,46 @@ impl PartialEq for SpriteEditController {
 }
 
 impl SpriteEditController {
-    pub fn new(engine: Rc<RefCell<Option<BalchugEngine>>>, project_state: Rc<RefCell<ProjectState>>, api: API) -> Self {
+    pub fn new(engine: Rc<RefCell<Option<BalchugEngine>>>, project_state: Rc<RefCell<ProjectState>>, api: Api) -> Self {
         let state = Signal::new(Option::<SpriteEditorState>::None);
         let state_memo = use_memo(move || state.read().cloned());
         let ps0 = project_state.clone();
         let ps1 = project_state.clone();
         let selected_sprite = use_memo(move || *ps0.borrow().selected_sprite.read());
-        
+        let scenario_updated = Rc::new(Cell::new(false));
+
+        let engine_clone = engine.clone();
+        let update_signal_clone = scenario_updated.clone();
+        use_future(move || {
+            let api = api.clone();
+            let engine = engine_clone.clone();
+            let update_signal = update_signal_clone.clone();
+            async move {
+                loop {
+                    TimeoutFuture::new(3000).await;
+                    if update_signal.get() {
+                        let mut scenario = None;
+                        if let Some(engine) = engine.borrow().as_ref() {
+                            let animations = engine.get_sprites_animations(None);
+                            scenario = Some(Scenario { sprites: animations });
+                        }
+                        if let Some(scenario) = scenario {
+                            api.update_scenario(scenario).await;
+                        }
+                        update_signal.set(false);
+                    }
+                }
+            }
+        });
+
         let controller = Self {
             state,
             state_memo,
             engine,
             project_state,
-            api,
             preview_offset_listener: PreviewOffsetListener::default(),
             canvas_rect: Rc::new(Cell::new(F32Rect::default())),
+            scenario_updated,
         };
         let mut c0 = controller.clone();
         use_effect(move || {
@@ -53,12 +79,12 @@ impl SpriteEditController {
                 ps1.borrow_mut().unselect_sprite();
             }
         });
-        
+
         controller
     }
 
     pub fn start(&self, window: Window, canvas: HtmlCanvasElement) {
-        let balchug_engine = start_engine(window, canvas);
+        let balchug_engine = start_engine(window, canvas, Default::default());
         balchug_engine.set_offset_listener(Box::new(self.preview_offset_listener.clone()));
         self.engine.replace(Some(balchug_engine));
     }
@@ -184,7 +210,7 @@ impl SpriteEditController {
             sum_offset += sprite_animation.states[i].offset;
         };
         let offset = sum_offset / indices.len() as f32;
-        if let Some(sprite_state) = BalchugEngine::interpolate_state(&sprite_animation.states, offset) {
+        if let Some(sprite_state) = BalchugEngine::interpolate_state(sprite_animation, offset) {
             let state = self.new_editor_state(sprite_state, proportion, sprite_animation.sprite_id, indices);
             Some((offset, state))
         } else {
@@ -248,12 +274,13 @@ impl SpriteEditController {
                 sprite_state.offset += offset_delta;
                 self.state.set(Some(state.change_sprite_rect(rect, sprite_state)));
                 engine.set_sprite_animation_states(state.timeline_points.sprite_index, animation.states);
+                self.scenario_updated.set(true);
             } else {
                 let states = &animation.states;
                 let points = state.timeline_points.states_indices.len();
                 let offset_diapason = states[state.timeline_points.states_indices[0]].offset..=states[state.timeline_points.states_indices[points - 1]].offset;
                 let bound_offset = new_offset.max(*offset_diapason.start()).min(*offset_diapason.end());
-                if let Some(new_sprite_state) = BalchugEngine::interpolate_state(states, bound_offset) {
+                if let Some(new_sprite_state) = BalchugEngine::interpolate_state(&animation, bound_offset) {
                     let proportion = Self::sprite_proportion(engine, &animation);
                     let canvas_rect = self.canvas_rect.get();
                     let rect = Self::scale_rect(new_sprite_state, canvas_rect, proportion);
@@ -268,7 +295,7 @@ impl SpriteEditController {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().cloned()
             && let Some(mut animation) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).into_iter().next()
-            && let Some(sprite_state) = BalchugEngine::interpolate_state(&animation.states, state.sprite_state.offset) {
+            && let Some(sprite_state) = BalchugEngine::interpolate_state(&animation, state.sprite_state.offset) {
             let canvas_rect = self.canvas_rect.get();
             let new_sprite_state = SpriteState {
                 offset: sprite_state.offset,
@@ -294,6 +321,7 @@ impl SpriteEditController {
             }
 
             engine.set_sprite_animation_states(state.timeline_points.sprite_index, animation.states);
+            self.scenario_updated.set(true);
             self.state.set(Some(state.change_sprite_rect(new_rect, new_sprite_state)));
         }
     }
@@ -363,17 +391,7 @@ impl SpriteEditController {
                                           new_state, state.parallax_factor);
             }
             engine.set_sprite_animation_states(state.timeline_points.sprite_index, sprite.states);
-        }
-    }
-
-    pub async fn send_scenario(&self) {
-        let mut scenario = None;
-        if let Some(engine) = self.engine.borrow().as_ref() {
-            let sprites = engine.get_sprites_animations(None);
-            scenario = Some(Scenario {sprites});
-        }
-        if let Some(scenario) = scenario {
-            self.api.update_scenario(scenario).await;
+            self.scenario_updated.set(true);
         }
     }
 

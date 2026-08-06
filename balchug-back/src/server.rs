@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use log::info;
 use rand::distr::{Alphanumeric, SampleString};
+use balchug_common::api::ProjectSpriteProperties;
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
 use crate::atlas::{create_atlas, create_empty_atlas};
@@ -22,6 +23,7 @@ impl Server {
             scenario: Scenario::default(),
             images_atlas: Atlas::default(),
             thumbs: Vec::new(),
+            sprite_properties: HashMap::new(),
         };
         std::fs::create_dir(format!("./store/{}", project.id))?;
         std::fs::create_dir(format!("./store/{}/image", project.id))?;
@@ -63,14 +65,20 @@ impl Server {
     }
     
     pub fn update_scenario(&self, project: BalchugProject, scenario: &Scenario) -> Result<(), CommonError> {
-        if let Ok(mut lock) = self.projects.write() {
-            let project = lock.get_mut(&project.id).ok_or("Failed to update project")?;
-            project.scenario = scenario.clone();
+        let mut lock = self.projects.write().map_err(|_| "Failed to update project")?;
+        let project = lock.get_mut(&project.id).ok_or("Failed to update project")?;
+        project.scenario = scenario.clone();
             
-            if let Ok(code) = animations_to_code(&scenario.sprites) {
-                info!("Scenario code:\n{code}");
-            }
+        if let Ok(code) = animations_to_code(&scenario.sprites) {
+            info!("Scenario code:\n{code}");
         }
+        Ok(())
+    }
+
+    pub fn update_sprite_props(&self, project: BalchugProject, props: &HashMap<usize, ProjectSpriteProperties>) -> Result<(), CommonError> {
+        let mut lock = self.projects.write().map_err(|_| "Failed to update project")?;
+        let project = lock.get_mut(&project.id).ok_or("Failed to update project")?;
+        project.sprite_properties = props.clone();
         Ok(())
     }
 }

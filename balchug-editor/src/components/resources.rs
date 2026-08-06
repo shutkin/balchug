@@ -1,4 +1,5 @@
 use dioxus::prelude::*;
+use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteImageData, SpriteTextData};
 use crate::controllers::resources::ResourcesController;
 use crate::states::project_state::SpriteProperties;
 
@@ -19,11 +20,15 @@ pub fn ImagesBank(controller: ResourcesController) -> Element {
                 id: "images_bank_body",
                 class: "panel-body",
                 ImageUploader {controller: controller.clone()}
-                for (i, thumb_url) in controller.get_thumbs().iter().enumerate() {
-                    ImageAsset {
-                        controller: controller.clone(),
-                        id: i,
-                        url: thumb_url,
+                div {
+                    id: "images_bank_list",
+                    class: "panel-resources",
+                    for (i, thumb_url) in controller.get_thumbs().iter().enumerate() {
+                        ImageAsset {
+                            controller: controller.clone(),
+                            id: i,
+                            url: thumb_url,
+                        }
                     }
                 }
             }
@@ -58,7 +63,6 @@ fn ImageUploader(controller: ResourcesController) -> Element {
 
 #[component]
 fn ImageAsset(controller: ResourcesController, id: usize, url: String) -> Element {
-    let asset_name = format!("{id}");
     rsx! {
         div {
             id: format!("image_asset_{id}"),
@@ -67,15 +71,11 @@ fn ImageAsset(controller: ResourcesController, id: usize, url: String) -> Elemen
                 class: "asset-preview",
                 src: url,
             }
-            span {
-                class: "asset-name",
-                "{asset_name}"
-            }
             button {
                 id: format!("image_{id}_put"),
                 class: "btn btn-secondary",
                 onclick: move |_| {
-                    controller.get_sprite_id_signal().set(Some(id));
+                    controller.get_image_id_signal().set(Some(id));
                 },
                 "Put"
             }
@@ -84,9 +84,9 @@ fn ImageAsset(controller: ResourcesController, id: usize, url: String) -> Elemen
 }
 
 #[component]
-pub fn SpriteDialog(mut controller: ResourcesController) -> Element {
+pub fn ImageSpriteDialog(mut controller: ResourcesController) -> Element {
     rsx! {
-        if let Some(sprite_id) = *controller.get_sprite_id_signal().read() {
+        if let Some(image_id) = *controller.get_image_id_signal().read() {
             div {
                 id: "sprite_dialog_overlay",
                 class: "modal-overlay",
@@ -97,13 +97,13 @@ pub fn SpriteDialog(mut controller: ResourcesController) -> Element {
                         id: "sprite_dialog_body",
                         class: "panel-body",
                         onsubmit: move |e| {
-                            controller.get_sprite_id_signal().set(None);
-                            let props = parse_sprite_props(e.values());
-                            controller.put_image(sprite_id, props);
+                            controller.get_image_id_signal().set(None);
+                            let (template, props) = parse_sprite_props(e.values(), Some(image_id));
+                            controller.add_new_sprite_animation(template, props);
                             e.prevent_default();
                         },
                         h4 {
-                            "Add image {sprite_id}"
+                            "Add image {image_id}"
                         }
                         label {
                             "Title",
@@ -125,6 +125,18 @@ pub fn SpriteDialog(mut controller: ResourcesController) -> Element {
                                 value: "1.0",
                             }
                         }
+                        label {
+                            "States Transition Smoothness",
+                            input {
+                                id: "sprite_dialog_smoothness",
+                                name: "smoothness",
+                                r#type: "range",
+                                min: "0.0",
+                                max: "0.75",
+                                step: "0.05",
+                                value: "0.5",
+                            }
+                        }
                         input {
                             id: "sprite_dialog_submit",
                             class: "btn btn-primary",
@@ -138,8 +150,98 @@ pub fn SpriteDialog(mut controller: ResourcesController) -> Element {
     }
 }
 
-fn parse_sprite_props(values: Vec<(String, FormValue)>) -> SpriteProperties {
+#[component]
+pub fn TextSpriteDialog(mut controller: ResourcesController) -> Element {
+    rsx! {
+        if *controller.get_text_edit_open().read() {
+            div {
+                id: "sprite_dialog_overlay",
+                class: "modal-overlay",
+                div {
+                    id: "sprite_dialog_box",
+                    class: "modal-box",
+                    form {
+                        id: "sprite_dialog_body",
+                        class: "panel-body",
+                        onsubmit: move |e| {
+                            controller.get_text_edit_open().set(false);
+                            let (template, props) = parse_sprite_props(e.values(), None);
+                            controller.add_new_sprite_animation(template, props);
+                            e.prevent_default();
+                        },
+                        h4 {
+                            "Add text"
+                        }
+                        label {
+                            "Title",
+                            input {
+                                id: "sprite_dialog_title",
+                                name: "title",
+                                r#type: "text",
+                            }
+                        }
+                        label {
+                            "Text",
+                            input {
+                                id: "sprite_dialog_title",
+                                name: "text",
+                                r#type: "text",
+                            }
+                        }
+                        label {
+                            "Size"
+                            select {
+                                id: "text_size_select",
+                                name: "size",
+                                for i in 0..=20 {
+                                    option {"{i + 10}"}
+                                }
+                            }
+                        }
+                        label {
+                            "Parallax Factor",
+                            input {
+                                id: "sprite_dialog_parallax",
+                                name: "parallax",
+                                r#type: "range",
+                                min: "0.5",
+                                max: "2",
+                                step: "0.1",
+                                value: "1.0",
+                            }
+                        }
+                        label {
+                            "States Transition Smoothness",
+                            input {
+                                id: "sprite_dialog_smoothness",
+                                name: "smoothness",
+                                r#type: "range",
+                                min: "0.0",
+                                max: "0.75",
+                                step: "0.05",
+                                value: "0.5",
+                            }
+                        }
+                        input {
+                            id: "sprite_dialog_submit",
+                            class: "btn btn-primary",
+                            r#type: "submit",
+                            "Ok"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn parse_sprite_props(values: Vec<(String, FormValue)>, image_id: Option<usize>) -> (SpriteAnimation, SpriteProperties) {
     let mut props = SpriteProperties::default();
+    let mut smooth_factor = 0.5;
+    let mut data = SpriteTextData {
+        text: String::new(),
+        relative_height: 0.0,
+    };
     for (name, value) in values {
         let v = match value {
             FormValue::Text(txt) => txt,
@@ -148,83 +250,45 @@ fn parse_sprite_props(values: Vec<(String, FormValue)>) -> SpriteProperties {
         match name.as_str() {
             "title" => props.title = v,
             "parallax" => props.parallax_factor = v.parse::<f32>().unwrap_or(1.0),
+            "smoothness" => smooth_factor = v.parse::<f32>().unwrap_or(0.5),
+            "size" => data.relative_height = v.parse::<i32>().unwrap_or(10) as f32 * 0.002,
+            "text" => data.text = v,
             _ => {}
         }
     }
-    props
+    let animation = if let Some(image_id) = image_id {
+        SpriteAnimation {
+            sprite_id: 0,
+            smooth_factor,
+            data: SpriteData::Image(SpriteImageData {atlas_item_id: image_id}),
+            states: vec![]
+        }
+    } else {
+        SpriteAnimation {
+            sprite_id: 0,
+            smooth_factor,
+            data: SpriteData::Text(data),
+            states: vec![]
+        }
+    };
+    (animation, props)
 }
 
 #[component]
 pub fn TextLine(controller: ResourcesController) -> Element {
     let c0 = controller.clone();
-    let apply_fn = move |values: Vec<(String, FormValue)>| {
-        let mut text = String::new();
-        let mut size = 10;
-        for (name, value) in values {
-            let txt_value = match value {
-                FormValue::Text(txt) => txt,
-                _ => String::new(),
-            };
-            if name == "text" {
-                text = txt_value;
-            } else {
-                size = txt_value.parse::<i32>().unwrap_or(10);
-            }
-        }
-        let title = text.chars().take(12).collect::<String>();
-        c0.put_text(text, size, SpriteProperties {title, parallax_factor: 1.0});
-    };
 
     rsx! {
         section {
             id: "text_section",
             class: "panel-card",
-            div {
-                id: "text_header",
-                class: "panel-header",
-                h4 {
-                    "Text Line"
-                }
-            }
-            form {
-                id: "text_body",
-                class: "panel-body",
-                onsubmit: move |event| {
-                    event.prevent_default();
-                    apply_fn(event.values());
+            button {
+                id: "add_text_line",
+                class: "btn btn-secondary",
+                onclick: move |_| {
+                    c0.get_text_edit_open().set(true);
                 },
-                div {
-                    id: "text_body_row",
-                    class: "form-row",
-                    label {
-                        "Text"
-                        input {
-                            id: "text_body_input",
-                            name: "text",
-                            r#type: "text",
-                        }
-                    }
-                    label {
-                        "Size"
-                        select {
-                            id: "text_size_select",
-                            name: "size",
-                            for i in 0..20 {
-                                option {"{i + 10}"}
-                            }
-                        }
-                    }
-                }
-                div {
-                    id: "text_submit_row",
-                    class: "form-row",
-                    input {
-                        id: "text_submit",
-                        class: "btn btn-primary",
-                        r#type: "submit",
-                        "Put"
-                    }
-                }
+                "Add Text Line"
             }
         }
     }

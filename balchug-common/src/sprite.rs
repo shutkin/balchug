@@ -34,6 +34,7 @@ pub struct SpriteAnimation {
     pub sprite_id: usize,
     pub data: SpriteData,
     pub states: Vec<SpriteState>,
+    pub smooth_factor: f32,
 }
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]

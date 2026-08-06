@@ -3,27 +3,40 @@ use balchug_common::sprite::Easing;
 use crate::controllers::sprite_editor::SpriteEditController;
 use crate::states::sprite_editor::SpriteEditorState;
 
-const EASING_LINEAR: &'static str = "Linear";
-const EASING_INCUBIC: &'static str = "In Cubic";
-const EASING_OUTCUBIC: &'static str = "Out Cubic";
-const EASING_INOUTCUBIC: &'static str = "In-Out Cubic";
+const EASING_LINEAR: &str = "Linear";
+const EASING_IN_CUBIC: &str = "In Cubic";
+const EASING_OUT_CUBIC: &str = "Out Cubic";
+const EASING_IN_OUT_CUBIC: &str = "In-Out Cubic";
+const EASING_IN_SINE: &str = "In Sine";
+const EASING_OUT_SINE: &str = "Out Sine";
+const EASING_IN_OUT_SINE: &str = "In-Out Sine";
+
+const ALL_EASING_VARIANTS: [Easing; 7] = [
+    Easing::Linear,
+    Easing::InCubic, Easing::OutCubic, Easing::InOutCubic,
+    Easing::InSine, Easing::OutSine, Easing::InOutSine,
+];
 
 fn map_str_to_easing(str: &str) -> Easing {
     match str {
-        EASING_LINEAR => Easing::Linear,
-        EASING_INCUBIC => Easing::InCubic,
-        EASING_OUTCUBIC => Easing::OutCubic,
-        EASING_INOUTCUBIC => Easing::InOutCubic,
+        EASING_IN_CUBIC => Easing::InCubic,
+        EASING_OUT_CUBIC => Easing::OutCubic,
+        EASING_IN_OUT_CUBIC => Easing::InOutCubic,
+        EASING_IN_SINE => Easing::InSine,
+        EASING_OUT_SINE => Easing::OutSine,
+        EASING_IN_OUT_SINE => Easing::InOutSine,
         _ => Easing::Linear,
     }
 }
 
 fn map_easing_to_str(easing: Easing) -> &'static str {
     match easing {
-        Easing::Linear => EASING_LINEAR,
-        Easing::InCubic => EASING_INCUBIC,
-        Easing::OutCubic => EASING_OUTCUBIC,
-        Easing::InOutCubic => EASING_INOUTCUBIC,
+        Easing::InCubic => EASING_IN_CUBIC,
+        Easing::OutCubic => EASING_OUT_CUBIC,
+        Easing::InOutCubic => EASING_IN_OUT_CUBIC,
+        Easing::InSine => EASING_IN_SINE,
+        Easing::OutSine => EASING_OUT_SINE,
+        Easing::InOutSine => EASING_IN_OUT_SINE,
         _ => EASING_LINEAR,
     }
 }
@@ -63,13 +76,6 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
             }
             c0.update_sprite_state(state);
             c0.edit_mode_off();
-            let c = c0.clone();
-            use_resource(move || {
-                let c = c.clone();
-                async move {
-                    c.send_scenario().await
-                }
-            });
         };
 
         rsx! {
@@ -225,21 +231,11 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
                         id: "easing_select",
                         name: "easing",
                         value: "{map_easing_to_str(se.sprite_state.easing)}",
-                        option {
-                            selected: se.sprite_state.easing == Easing::Linear,
-                            "{EASING_LINEAR}"
-                        }
-                        option {
-                            selected: se.sprite_state.easing == Easing::InCubic,
-                            "{EASING_INCUBIC}"
-                        }
-                        option {
-                            selected: se.sprite_state.easing == Easing::OutCubic,
-                            "{EASING_OUTCUBIC}"
-                        }
-                        option {
-                            selected: se.sprite_state.easing == Easing::InOutCubic,
-                            "{EASING_INOUTCUBIC}"
+                        for &easing in ALL_EASING_VARIANTS.iter() {
+                            option {
+                                selected: se.sprite_state.easing == easing,
+                                "{map_easing_to_str(easing)}"
+                            }
                         }
                     }
                 }
