@@ -2,7 +2,7 @@ use crate::controllers::api::Api;
 use balchug_engine::BalchugEngine;
 use dioxus::html::FileData;
 use dioxus::prelude::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use balchug_common::atlas::Atlas;
 use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState, Easing};
@@ -16,6 +16,7 @@ pub struct ResourcesController {
     project_state: Rc<RefCell<ProjectState>>,
     sprite_id: Signal<Option<usize>>,
     text_edit_open: Signal<bool>,
+    sprites_update_signal: Rc<Cell<bool>>,
 }
 
 impl PartialEq for ResourcesController {
@@ -25,7 +26,12 @@ impl PartialEq for ResourcesController {
 }
 
 impl ResourcesController {
-    pub fn new(api: Api, engine: Rc<RefCell<Option<BalchugEngine>>>, project_state: Rc<RefCell<ProjectState>>) -> Self {
+    pub fn new(
+        api: Api,
+        engine: Rc<RefCell<Option<BalchugEngine>>>,
+        project_state: Rc<RefCell<ProjectState>>,
+        sprites_update_signal: Rc<Cell<bool>>,
+    ) -> Self {
         Self {
             api,
             engine,
@@ -33,6 +39,7 @@ impl ResourcesController {
             thumbs: Default::default(),
             sprite_id: Signal::new(None),
             text_edit_open: Signal::new(false),
+            sprites_update_signal,
         }
     }
     
@@ -95,16 +102,9 @@ impl ResourcesController {
             };
             sprites.push(animation);
             engine.set_scenario(sprites);
-            let props = self.project_state.borrow_mut().add_sprite_properties(sprite_id, props);
+            self.project_state.borrow_mut().add_sprite_properties(sprite_id, props);
             self.project_state.borrow_mut().select_sprite(sprite_id);
-            let api_clone = self.api.clone();
-            use_future(move || {
-                let api = api_clone.clone();
-                let props = props.clone();
-                async move {
-                    api.update_sprites_props(props).await;
-                }
-            });
+            self.sprites_update_signal.set(true);
         }
     }
 

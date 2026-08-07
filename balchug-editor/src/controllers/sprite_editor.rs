@@ -1,17 +1,14 @@
+use crate::components::timeline::{TimeLinePoint, TimeLinePoints};
+use crate::states::project_state::ProjectState;
+use crate::states::sprite_editor::SpriteEditorState;
+use balchug_common::F32Rect;
+use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState};
+use balchug_engine::{BalchugEngine, OffsetListener, start_engine};
+use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
-use crate::states::sprite_editor::SpriteEditorState;
-use balchug_engine::{start_engine, BalchugEngine, OffsetListener};
-use dioxus::prelude::*;
 use std::rc::Rc;
-use gloo_timers::future::TimeoutFuture;
 use web_sys::{HtmlCanvasElement, Window};
-use balchug_common::F32Rect;
-use balchug_common::scenario::Scenario;
-use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState};
-use crate::components::timeline::{TimeLinePoint, TimeLinePoints};
-use crate::controllers::api::Api;
-use crate::states::project_state::ProjectState;
 
 #[derive(Clone)]
 pub struct SpriteEditController {
@@ -21,7 +18,8 @@ pub struct SpriteEditController {
     preview_offset_listener: PreviewOffsetListener,
     canvas_rect: Rc<Cell<F32Rect>>,
     project_state: Rc<RefCell<ProjectState>>,
-    scenario_updated: Rc<Cell<bool>>,
+    scenario_update: Rc<Cell<bool>>,
+    sprites_update: Rc<Cell<bool>>,
 }
 
 impl PartialEq for SpriteEditController {
@@ -31,37 +29,17 @@ impl PartialEq for SpriteEditController {
 }
 
 impl SpriteEditController {
-    pub fn new(engine: Rc<RefCell<Option<BalchugEngine>>>, project_state: Rc<RefCell<ProjectState>>, api: Api) -> Self {
+    pub fn new(
+        engine: Rc<RefCell<Option<BalchugEngine>>>,
+        project_state: Rc<RefCell<ProjectState>>,
+        scenario_update: Rc<Cell<bool>>,
+        sprites_update: Rc<Cell<bool>>,
+    ) -> Self {
         let state = Signal::new(Option::<SpriteEditorState>::None);
         let state_memo = use_memo(move || state.read().cloned());
         let ps0 = project_state.clone();
         let ps1 = project_state.clone();
         let selected_sprite = use_memo(move || *ps0.borrow().selected_sprite.read());
-        let scenario_updated = Rc::new(Cell::new(false));
-
-        let engine_clone = engine.clone();
-        let update_signal_clone = scenario_updated.clone();
-        use_future(move || {
-            let api = api.clone();
-            let engine = engine_clone.clone();
-            let update_signal = update_signal_clone.clone();
-            async move {
-                loop {
-                    TimeoutFuture::new(3000).await;
-                    if update_signal.get() {
-                        let mut scenario = None;
-                        if let Some(engine) = engine.borrow().as_ref() {
-                            let animations = engine.get_sprites_animations(None);
-                            scenario = Some(Scenario { sprites: animations });
-                        }
-                        if let Some(scenario) = scenario {
-                            api.update_scenario(scenario).await;
-                        }
-                        update_signal.set(false);
-                    }
-                }
-            }
-        });
 
         let controller = Self {
             state,
@@ -70,7 +48,8 @@ impl SpriteEditController {
             project_state,
             preview_offset_listener: PreviewOffsetListener::default(),
             canvas_rect: Rc::new(Cell::new(F32Rect::default())),
-            scenario_updated,
+            scenario_update,
+            sprites_update,
         };
         let mut c0 = controller.clone();
         use_effect(move || {
@@ -143,6 +122,7 @@ impl SpriteEditController {
             sprites.retain(|sprite| sprite.sprite_id != sprite_id);
             engine.set_scenario(sprites);
             self.project_state.borrow_mut().sprite_properties.remove(&sprite_id);
+            self.sprites_update.set(true);
         }
     }
     
@@ -274,7 +254,7 @@ impl SpriteEditController {
                 sprite_state.offset += offset_delta;
                 self.state.set(Some(state.change_sprite_rect(rect, sprite_state)));
                 engine.set_sprite_animation_states(state.timeline_points.sprite_index, animation.states);
-                self.scenario_updated.set(true);
+                self.scenario_update.set(true);
             } else {
                 let states = &animation.states;
                 let points = state.timeline_points.states_indices.len();
@@ -321,7 +301,7 @@ impl SpriteEditController {
             }
 
             engine.set_sprite_animation_states(state.timeline_points.sprite_index, animation.states);
-            self.scenario_updated.set(true);
+            self.scenario_update.set(true);
             self.state.set(Some(state.change_sprite_rect(new_rect, new_sprite_state)));
         }
     }
@@ -379,7 +359,7 @@ impl SpriteEditController {
     /*
     State Editor
      */
-    pub fn update_sprite_state(&self, new_state: SpriteState) {
+    pub fn update_sprite_state(&mut self, new_state: SpriteState) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().as_ref()
             && let Some(mut sprite) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).first().cloned() {
@@ -391,7 +371,7 @@ impl SpriteEditController {
                                           new_state, state.parallax_factor);
             }
             engine.set_sprite_animation_states(state.timeline_points.sprite_index, sprite.states);
-            self.scenario_updated.set(true);
+            self.scenario_update.set(true);
         }
     }
 

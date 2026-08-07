@@ -3,12 +3,14 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use dioxus::prelude::*;
 use balchug_common::api::OpenProjectResponse;
+use balchug_common::scenario::Scenario;
 use balchug_engine::BalchugEngine;
 use crate::components::workspace::Workspace;
 use crate::controllers::api::Api;
 use crate::controllers::resources::ResourcesController;
 use crate::controllers::sprite_editor::SpriteEditController;
 use crate::controllers::storage::LocalStorage;
+use crate::controllers::updates_sender::{PinnedFuture, UpdatesHandler, UpdatesSender};
 use crate::states::project_state::{ProjectState, SpriteProperties};
 
 mod components;
@@ -20,6 +22,41 @@ const MAIN_CSS: Asset = asset!("/assets/style.css");
 
 fn main() {
     launch(App);
+}
+
+struct ScenarioUpdateHandler {
+    engine: Rc<RefCell<Option<BalchugEngine>>>,
+    api: Api,
+}
+
+impl UpdatesHandler<Scenario> for ScenarioUpdateHandler {
+    fn collect(&self) -> Option<Scenario> {
+        if let Some(engine) = self.engine.borrow().as_ref() {
+            let animations = engine.get_sprites_animations(None);
+            Some(Scenario { sprites: animations })
+        } else {
+            None
+        }
+    }
+    
+    fn send(&self, value: Scenario) -> PinnedFuture<'_> {
+        Box::pin(self.api.update_scenario(value))
+    }
+}
+
+struct SpritesUpdateHandler {
+    project_state: Rc<RefCell<ProjectState>>,
+    api: Api,
+}
+
+impl UpdatesHandler<HashMap<usize, SpriteProperties>> for SpritesUpdateHandler {
+    fn collect(&self) -> Option<HashMap<usize, SpriteProperties>> {
+        Some(self.project_state.borrow().sprite_properties.read().clone())
+    }
+
+    fn send(&self, value: HashMap<usize, SpriteProperties>) -> PinnedFuture<'_> {
+        Box::pin(self.api.update_sprites_props(value))
+    }
 }
 
 #[component]
@@ -50,6 +87,22 @@ fn App() -> Element {
     let engine = Rc::new(RefCell::new(Option::<BalchugEngine>::None));
     let project_state = Rc::new(RefCell::new(ProjectState::new()));
 
+    let scenario_update_sender = UpdatesSender::new(
+        ScenarioUpdateHandler {
+            engine: engine.clone(),
+            api: api.clone(),
+        }
+    );
+    let scenario_update_signal = scenario_update_sender.start();
+    
+    let sprites_update_sender = UpdatesSender::new(
+        SpritesUpdateHandler {
+            project_state: project_state.clone(),
+            api: api.clone(),
+        }
+    );
+    let sprites_update_signal = sprites_update_sender.start();
+
     // load font when assets url is known
     let api_clone = api.clone();
     let engine_clone = engine.clone();
@@ -62,8 +115,18 @@ fn App() -> Element {
         }
     });
 
-    let edit_controller = SpriteEditController::new(engine.clone(), project_state.clone(), api.clone());
-    let resources_controller = ResourcesController::new(api.clone(), engine.clone(), project_state.clone());
+    let edit_controller = SpriteEditController::new(
+        engine.clone(),
+        project_state.clone(),
+        scenario_update_signal,
+        sprites_update_signal.clone(),
+    );
+    let resources_controller = ResourcesController::new(
+        api.clone(),
+        engine.clone(),
+        project_state.clone(),
+        sprites_update_signal,
+    );
 
     // open existing project
     let mut resources_clone = resources_controller.clone();

@@ -1,4 +1,6 @@
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
 use dioxus::html::bytes::Bytes;
 use dioxus::prelude::*;
 use reqwest::Client;
@@ -13,7 +15,7 @@ const SERVER_URL: &str = "http://localhost:3000";
 #[derive(Clone)]
 pub struct Api {
     http_client: Client,
-    project_id: Store<String>,
+    project_id: Rc<RefCell<String>>,
 }
 
 impl PartialEq for Api {
@@ -26,12 +28,12 @@ impl Api {
     pub fn new(project_id: String) -> Self {
         Self {
             http_client: Client::new(),
-            project_id: Store::new(project_id),
+            project_id: Rc::new(RefCell::new(project_id)),
         }
     }
 
     pub fn has_project(&self) -> bool {
-        !self.project_id.read().is_empty()
+        !self.project_id.borrow().is_empty()
     }
 
     pub async fn start(&mut self) -> Option<String> {
@@ -39,7 +41,7 @@ impl Api {
             Ok(response) => {
                 if let Ok(resp) = response.json::<StartProjectResponse>().await {
                     info!("{resp:?}");
-                    self.project_id.set(resp.project_id.clone());
+                    self.project_id.replace(resp.project_id.clone());
                     //return Some(format!("{SERVER_URL}/{}", resp.project_id));
                     return Some(resp.project_id);
                 }
@@ -52,7 +54,7 @@ impl Api {
     }
 
     pub async fn upload_image(&self, data: Bytes, mime: &str) -> Option<(Vec<String>, Atlas)> {
-        let url = format!("{SERVER_URL}/{}/image", self.project_id);
+        let url = format!("{SERVER_URL}/{}/image", self.project_id.borrow());
         match self.http_client.post(url).header(CONTENT_TYPE, mime).body(data).send().await {
             Ok(response) => {
                 if let Ok(resp) = response.json::<AddImageResponse>().await {
@@ -76,7 +78,7 @@ impl Api {
             });
         }
 
-        let url = format!("{SERVER_URL}/{}/sprites", self.project_id);
+        let url = format!("{SERVER_URL}/{}/sprites", self.project_id.borrow());
         let data = UpdateSpritesPropsRq {
             sprites_properties,
         };
@@ -91,7 +93,7 @@ impl Api {
     }
 
     pub async fn update_scenario(&self, scenario: Scenario) {
-        let url = format!("{SERVER_URL}/{}/scenario", self.project_id);
+        let url = format!("{SERVER_URL}/{}/scenario", self.project_id.borrow());
         let data = UpdateScenarioRq {
             scenario,
         };
@@ -106,7 +108,7 @@ impl Api {
     }
     
     pub async fn open_project(&self) -> Option<OpenProjectResponse> {
-        let url = format!("{SERVER_URL}/{}/project", self.project_id);
+        let url = format!("{SERVER_URL}/{}/project", self.project_id.borrow());
         match self.http_client.get(url).send().await {
             Ok(response) => {
                 if let Ok(resp) = response.json::<OpenProjectResponse>().await {
@@ -121,6 +123,6 @@ impl Api {
     }
 
     pub fn assets_url(&self, path: &str) -> String {
-        format!("{SERVER_URL}/{}/assets/{path}", self.project_id)
+        format!("{SERVER_URL}/{}/assets/{path}", self.project_id.borrow())
     }
 }
