@@ -8,14 +8,14 @@ use web_sys::{Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2Render
 use balchug_common::atlas::{Atlas, AtlasItem, FontData};
 use balchug_common::F32Rect;
 use balchug_common::scenario::Scenario;
-use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteData, SpriteState};
+use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteData, SpriteState, SpriteTextData};
 use crate::font::font_builder::build_font;
 use crate::fps::FpsCounter;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
 use crate::scenario::{scenario_letters, scenario_max_offset, scenario_text_size};
 use crate::settings::Settings;
-use crate::sprite_util::{arrange_text_line, interpolate_state, scale_sprite_state};
+use crate::sprite_util::{arrange_text_line, interpolate_state, measure_text_line, scale_sprite_state};
 
 mod gl;
 mod inertia;
@@ -174,6 +174,10 @@ impl BalchugEngine {
 
     pub fn get_fps(&self) -> usize {
         self.context.fps.borrow().get_fps()
+    }
+    
+    pub fn measure_text(&self, data: &SpriteTextData, scale: f32) -> f32 {
+        measure_text_line(&data.text, data.relative_height, scale, &self.context.font.borrow())
     }
 }
 

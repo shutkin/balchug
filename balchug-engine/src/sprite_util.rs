@@ -125,3 +125,21 @@ pub fn arrange_text_line(line: &SpriteTextData, cur_state: &SpriteState, font: &
     }
     result
 }
+
+pub fn measure_text_line(text: &str, height: f32, scale: f32, font: &FontData) -> f32 {
+    let scale = scale * height / font.height;
+    let mut cx = 0.0;
+    for c in text.chars() {
+        if c.is_control() {
+            continue;
+        }
+        if c.is_whitespace() {
+            cx += font.space_width * scale;
+            continue;
+        }
+        if let Some(glyph) = font.glyphs.get(&c) {
+            cx += glyph.h_advance * scale;
+        }
+    }
+    cx
+}
