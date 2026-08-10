@@ -61,6 +61,10 @@ impl SpriteEditController {
 
         controller
     }
+    
+    pub fn get_canvas_rect(&self) -> F32Rect {
+        self.canvas_rect.get()
+    }
 
     pub fn start(&self, window: Window, canvas: HtmlCanvasElement) {
         let balchug_engine = start_engine(window, canvas, Default::default());
@@ -208,7 +212,7 @@ impl SpriteEditController {
             };
             sum_offset / indices.len() as f32
         });
-        if let Some(sprite_state) = BalchugEngine::interpolate_state(sprite_animation, offset) {
+        if let Some(sprite_state) = engine.interpolate_state(sprite_animation, offset) {
             let state = self.new_editor_state(
                 engine, sprite_animation, sprite_state, sprite_animation.sprite_id, indices);
             Some((offset, state))
@@ -248,9 +252,15 @@ impl SpriteEditController {
         } else {
             sprite_state.width
         };
+        let scaled_y = sprite_state.y * canvas_rect.width;
+        let y = if sprite_state.from_bottom {
+            canvas_rect.y + canvas_rect.height - scaled_y
+        } else {
+            canvas_rect.y + scaled_y
+        };
         F32Rect {
             x: sprite_state.x * canvas_rect.width + canvas_rect.x,
-            y: sprite_state.y * canvas_rect.width + canvas_rect.y,
+            y,
             width: width * canvas_rect.width,
             height: sprite_state.width * canvas_rect.width / proportion,
         }
@@ -294,7 +304,7 @@ impl SpriteEditController {
                 let points = state.timeline_points.states_indices.len();
                 let offset_diapason = states[state.timeline_points.states_indices[0]].offset..=states[state.timeline_points.states_indices[points - 1]].offset;
                 let bound_offset = new_offset.max(*offset_diapason.start()).min(*offset_diapason.end());
-                if let Some(new_sprite_state) = BalchugEngine::interpolate_state(&animation, bound_offset) {
+                if let Some(new_sprite_state) = engine.interpolate_state(&animation, bound_offset) {
                     let canvas_rect = self.canvas_rect.get();
                     let rect = Self::scale_rect(engine, &animation, new_sprite_state, canvas_rect);
                     self.state.set(Some(state.change_sprite_rect(rect, new_sprite_state)));
@@ -308,12 +318,18 @@ impl SpriteEditController {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().cloned()
             && let Some(mut animation) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).into_iter().next()
-            && let Some(sprite_state) = BalchugEngine::interpolate_state(&animation, state.sprite_state.offset) {
+            && let Some(sprite_state) = engine.interpolate_state(&animation, state.sprite_state.offset) {
             let canvas_rect = self.canvas_rect.get();
+            let new_y = if sprite_state.from_bottom {
+                canvas_rect.y + canvas_rect.height - new_rect.y
+            } else {
+                new_rect.y - canvas_rect.y
+            };
             let mut new_sprite_state = SpriteState {
                 offset: sprite_state.offset,
                 x: (new_rect.x - canvas_rect.x) / canvas_rect.width,
-                y: (new_rect.y - canvas_rect.y) / canvas_rect.width,
+                y: new_y / canvas_rect.width,
+                from_bottom: sprite_state.from_bottom,
                 width: new_rect.width / canvas_rect.width,
                 color: sprite_state.color,
                 easing: sprite_state.easing,
@@ -368,7 +384,8 @@ impl SpriteEditController {
         let first_state = SpriteState {
             offset: start_offset,
             x: cur_state.x,
-            y: start_y,
+            y: 1.0 / aspect_ratio - start_y,
+            from_bottom: true,
             width: cur_state.width,
             color: cur_state.color,
             easing: cur_state.easing,
@@ -377,6 +394,7 @@ impl SpriteEditController {
             offset: end_offset,
             x: cur_state.x,
             y: end_y,
+            from_bottom: false,
             width: cur_state.width,
             color: cur_state.color,
             easing: cur_state.easing,
@@ -396,7 +414,8 @@ impl SpriteEditController {
             let modified_state = SpriteState {
                 offset: state.offset,
                 x: new_state.x,
-                y: new_state.y + dy,
+                y: if state.from_bottom {new_state.y - dy} else {new_state.y + dy},
+                from_bottom: state.from_bottom,
                 width: new_state.width,
                 color: new_state.color,
                 easing: new_state.easing,

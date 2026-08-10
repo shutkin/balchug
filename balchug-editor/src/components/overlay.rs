@@ -35,7 +35,7 @@ pub fn PreviewOverlay(controller: SpriteEditController) -> Element {
     rsx! {
         div {
             id: "preview_overlay_container",
-            style: "position: absolute; left: 0; top: 4px; width: 100%; height: 100%; cursor: {cursor_type};",
+            style: "position: absolute; left: 0; top: 0; width: 100%; height: 100%; cursor: {cursor_type};",
             onmousemove: move |event: Event<MouseData>| {
                 event.prevent_default();
                 if let Some(state) = c0.get_cur_state() {

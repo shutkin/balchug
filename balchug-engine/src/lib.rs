@@ -15,7 +15,8 @@ use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
 use crate::scenario::{scenario_letters, scenario_max_offset, scenario_text_size};
 use crate::settings::Settings;
-use crate::sprite_util::{arrange_text_line, interpolate_state, measure_text_line, scale_sprite_state};
+use crate::sprite_util::{scale_sprite_state, SpriteUtil};
+use crate::text_util::{measure_text_line, TextUtil};
 
 mod gl;
 mod inertia;
@@ -24,6 +25,7 @@ mod font;
 mod sprite_util;
 mod fps;
 pub mod settings;
+mod text_util;
 
 pub trait OffsetListener {
     fn offset_change(&mut self, offset: f32);
@@ -42,6 +44,8 @@ struct AppContext {
     font_bytes: Rc<RefCell<Vec<u8>>>,
     scenario: Rc<RefCell<Scenario>>,
     canvas_width: Rc<Cell<f32>>,
+    sprite_util: Rc<Cell<SpriteUtil>>,
+    text_util: Rc<Cell<TextUtil>>,
     last_frame: Rc<Cell<f64>>,
     touch_start_screen: Rc<Cell<f32>>,
     touch_start_scroll: Rc<Cell<f32>>,
@@ -50,7 +54,7 @@ struct AppContext {
 }
 
 impl AppContext {
-    fn new(canvas_width: f32, settings: Settings) -> Self {
+    fn new(canvas_width: f32, canvas_height: f32, settings: Settings) -> Self {
         AppContext {
             settings,
             force_rerender: Rc::new(Cell::new(false)),
@@ -63,6 +67,8 @@ impl AppContext {
             font: Rc::new(RefCell::new(FontData::default())),
             font_bytes: Rc::new(RefCell::new(Vec::new())),
             canvas_width: Rc::new(Cell::new(canvas_width)),
+            sprite_util: Rc::new(Cell::new(SpriteUtil::new(canvas_width, canvas_height))),
+            text_util: Rc::new(Cell::new(TextUtil::new(canvas_width, canvas_height))),
             last_frame: Rc::new(Cell::new(0.0)),
             touch_start_screen: Rc::new(Cell::new(0.0)),
             touch_start_scroll: Rc::new(Cell::new(0.0)),
@@ -91,6 +97,8 @@ impl BalchugEngine {
             self.canvas.set_width(width);
             self.canvas.set_height(height);
             self.context.canvas_width.set(width as f32);
+            self.context.sprite_util.set(SpriteUtil::new(width as f32, height as f32));
+            self.context.text_util.set(TextUtil::new(width as f32, height as f32));
             self.renderer.set_sizes(width as f32, height as f32);
             self.update();
             let rect = self.canvas.get_bounding_client_rect();
@@ -138,8 +146,13 @@ impl BalchugEngine {
         }
     }
 
-    pub fn interpolate_state(animation: &SpriteAnimation, offset: f32) -> Option<SpriteState> {
-        interpolate_state(animation, offset)
+    pub fn interpolate_state(&self, animation: &SpriteAnimation, offset: f32) -> Option<SpriteState> {
+        if let Some(fixed_state) = animation.states.iter()
+            .find(|state| (offset - state.offset).abs() < 0.05) {
+            Some(*fixed_state)
+        } else {
+            self.context.sprite_util.get().interpolate_state(animation, offset)
+        }
     }
     
     pub fn get_atlas_item(&self, id: usize) -> Option<AtlasItem> {
@@ -175,7 +188,7 @@ impl BalchugEngine {
     pub fn get_fps(&self) -> usize {
         self.context.fps.borrow().get_fps()
     }
-    
+
     pub fn measure_text(&self, data: &SpriteTextData, scale: f32) -> f32 {
         measure_text_line(&data.text, data.relative_height, scale, &self.context.font.borrow())
     }
@@ -210,6 +223,8 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
     }
 
     let width = ctx.canvas_width.get();
+    let sprite_util = ctx.sprite_util.get();
+    let text_util = ctx.text_util.get();
     let scaled_offset = offset / width;
     if let Some(listener) = ctx.offset_listener.borrow_mut().as_mut() {
         listener.offset_change(scaled_offset)
@@ -218,7 +233,7 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
     let (mut sprites, mut text_sprites) = (Vec::new(), Vec::new());
 
     for sprite_animation in &scenario.sprites {
-        if let Some(cur_state) = interpolate_state(&sprite_animation, scaled_offset)
+        if let Some(cur_state) = sprite_util.interpolate_state(sprite_animation, scaled_offset)
             && cur_state.color[3] > 0.001 {
             match &sprite_animation.data {
                 SpriteData::Image(image_data) => {
@@ -228,7 +243,7 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
                     });
                 }
                 SpriteData::Text(text_data) => {
-                    for glyph_sprite in arrange_text_line(text_data, &cur_state, &ctx.font.borrow(), &ctx.font_atlas_items.borrow()) {
+                    for glyph_sprite in text_util.arrange_text_line(text_data, &cur_state, &ctx.font.borrow(), &ctx.font_atlas_items.borrow()) {
                         let glyph_sprite = Sprite {
                             state: scale_sprite_state(&glyph_sprite.state, width),
                             atlas_item: glyph_sprite.atlas_item,
@@ -260,7 +275,7 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, settings: Setting
     let (width, height) = (canvas.width(), canvas.height());
     renderer.set_sizes(width as f32, height as f32);
 
-    let ctx = AppContext::new(width as f32, settings);
+    let ctx = AppContext::new(width as f32, height as f32, settings);
 
     let ctx_clone = ctx.clone();
     let renderer_clone = renderer.clone();

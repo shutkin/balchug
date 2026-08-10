@@ -120,7 +120,8 @@ impl ResourcesController {
         let state_zero = SpriteState {
             offset: start_offset,
             x: 0.0,
-            y: start_y,
+            y: 1.0 / aspect_ratio - start_y,
+            from_bottom: true,
             width: 1.0,
             color: [1.0, 1.0, 1.0, 1.0],
             easing: Easing::default(),
@@ -129,6 +130,7 @@ impl ResourcesController {
             offset: end_offset,
             x: 0.0,
             y: end_y,
+            from_bottom: false,
             width: 1.0,
             color: [1.0, 1.0, 1.0, 1.0],
             easing: Easing::default(),

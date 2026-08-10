@@ -68,10 +68,11 @@ pub fn animations_to_code(animations: &[SpriteAnimation]) -> Result<String, Comm
         for st in &a.states {
             write!(
                 code,
-                "SpriteState{{offset:{:?},x:{:?},y:{:?},width:{:?},color:{:?},easing:{}}},",
+                "SpriteState{{offset:{:?},x:{:?},y:{:?},from_bottom:{:?},width:{:?},color:{:?},easing:{}}},",
                 st.offset,
                 st.x,
                 st.y,
+                st.from_bottom,
                 st.width,
                 st.color,
                 easing(st)

@@ -1,5 +1,6 @@
 use dioxus::prelude::*;
-use balchug_common::sprite::Easing;
+use balchug_common::F32Rect;
+use balchug_common::sprite::{Easing, SpriteState};
 use crate::controllers::sprite_editor::SpriteEditController;
 use crate::states::sprite_editor::SpriteEditorState;
 
@@ -70,6 +71,7 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                 } else {
                     match name.as_str() {
                         "easing" => state.easing = map_str_to_easing(&txt),
+                        "from_bottom" => change_from_bottom(&mut state, &txt, c0.get_canvas_rect()),
                         _ => {}
                     }
                 }
@@ -197,6 +199,26 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
             id: "state_props_row2",
             class: "form-row",
             div {
+                id: "state_from_bottom",
+                class: "form-group",
+                label {
+                    "From Bottom",
+                    select {
+                        id: "from_bottom_select",
+                        name: "from_bottom",
+                        value: "{se.sprite_state.from_bottom}",
+                        option {
+                            selected: !se.sprite_state.from_bottom,
+                            "False"
+                        }
+                        option {
+                            selected: se.sprite_state.from_bottom,
+                            "True"
+                        }
+                    }
+                }
+            }
+            div {
                 id: "state_width",
                 class: "form-group",
                 label {
@@ -246,4 +268,12 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
 
 fn round(value: f32) -> f32 {
     (value * 1000.0).round() / 1000.0
+}
+
+fn change_from_bottom(state: &mut SpriteState, value: &str, canvas_rect: F32Rect) {
+    let from_bottom = value.to_lowercase().parse::<bool>().unwrap_or_default();
+    if state.from_bottom != from_bottom {
+        state.y = canvas_rect.height / canvas_rect.width - state.y;
+        state.from_bottom = from_bottom;
+    }
 }
