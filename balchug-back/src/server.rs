@@ -5,7 +5,7 @@ use rand::distr::{Alphanumeric, SampleString};
 use balchug_common::api::ProjectSpriteProperties;
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
-use crate::atlas::{create_atlas, create_empty_atlas};
+use crate::atlas::{create_atlas, create_empty_atlas, optimize_atlas_items};
 use crate::codegen::{animations_to_code, atlas_to_code};
 use crate::CommonError;
 use crate::model::BalchugProject;
@@ -72,6 +72,10 @@ impl Server {
         if let Ok(code) = animations_to_code(&scenario.sprites) {
             info!("Scenario code:\n{code}");
         }
+        
+        let optimized_scales = optimize_atlas_items(&project.images_atlas, &project.scenario, 1440);
+        info!("Optimized scales:\n{optimized_scales:?}");
+        
         Ok(())
     }
 

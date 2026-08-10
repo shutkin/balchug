@@ -370,6 +370,12 @@ input[type="range"] {
     font-weight: 500;
 }
 
+.asset-items-row {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+}
+
 .asset-item {
     display: flex;
     flex-direction: column;
@@ -382,10 +388,11 @@ input[type="range"] {
     width: 134px;
 }
 
-.asset-preview {
-    max-width: 120px;
-    max-height: 120px;
+.asset-thumb {
+    max-width: 140px;
+    max-height: 140px;
     border-radius: 4px;
+    width: 156px;
 }
 
 .asset-name {

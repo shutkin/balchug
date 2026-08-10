@@ -19,15 +19,31 @@ pub fn ImagesBank(controller: ResourcesController) -> Element {
             div {
                 id: "images_bank_body",
                 class: "panel-body",
+                ThumbsList {controller: controller.clone()}
                 ImageUploader {controller: controller.clone()}
+            }
+        }
+    }
+}
+
+#[component]
+fn ThumbsList(controller: ResourcesController) -> Element {
+    let thumbs = controller.get_thumbs();
+    rsx! {
+        div {
+            id: "images_bank_list",
+            class: "panel-resources",
+            for row_index in 0..thumbs.len().div_ceil(3) {
                 div {
-                    id: "images_bank_list",
-                    class: "panel-resources",
-                    for (i, thumb_url) in controller.get_thumbs().iter().enumerate() {
-                        ImageAsset {
-                            controller: controller.clone(),
-                            id: i,
-                            url: thumb_url,
+                    id: "images_bank_row_{row_index}",
+                    class: "asset-items-row",
+                    for i in row_index * 3..(row_index + 1) * 3 {
+                        if i < thumbs.len() {
+                            ImageAsset {
+                                controller: controller.clone(),
+                                id: i,
+                                url: thumbs[i].clone(),
+                            }
                         }
                     }
                 }
@@ -68,7 +84,7 @@ fn ImageAsset(controller: ResourcesController, id: usize, url: String) -> Elemen
             id: format!("image_asset_{id}"),
             class: "asset-item",
             img {
-                class: "asset-preview",
+                class: "asset-thumb",
                 src: url,
             }
             button {

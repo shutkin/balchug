@@ -13,11 +13,21 @@ pub struct AtlasItem {
     pub origin_height: u32,
 }
 
-#[derive(Clone, Default, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Atlas {
     pub width: u32,
     pub height: u32,
     pub items: HashMap<usize, AtlasItem>,
+}
+
+impl Default for Atlas {
+    fn default() -> Self {
+        Self {
+            width: 4,
+            height: 4,
+            items: HashMap::new(),
+        }
+    }
 }
 
 impl Atlas {
