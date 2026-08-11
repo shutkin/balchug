@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs::ReadDir;
+use std::hash::{DefaultHasher, Hash, Hasher};
 use image::{DynamicImage, GenericImage, ImageReader, RgbaImage};
 use image::imageops::FilterType;
 use log::{error, info};
@@ -18,10 +19,10 @@ pub fn create_empty_atlas(atlas_path: &str) -> Result<(), CommonError> {
     Ok(())
 }
 
-pub fn create_atlas(images_dir: &str, atlas_path: &str) -> Result<Atlas, CommonError> {
+pub fn create_atlas(images_dir: &str, atlas_path: &str, scales: &HashMap<usize, f32>) -> Result<Atlas, CommonError> {
     let dir = std::fs::read_dir(images_dir)?;
     
-    let images = read_images(dir);
+    let images = read_images(dir, scales);
     let dimensions = images.iter()
         .map(|image| (image.width() as i32, image.height() as i32))
         .collect::<Vec<_>>();
@@ -33,24 +34,36 @@ pub fn create_atlas(images_dir: &str, atlas_path: &str) -> Result<Atlas, CommonE
         .map_err(|err| format!("failed to encode atlas.webp: {err:?}"))?;
     std::fs::write(atlas_path, webp.to_vec())?;
     Ok(atlas)
-
-    /*let mut code = Vec::new();
-    code.push("use std::collections::HashMap;\nuse crate::atlas::{Atlas, AtlasItem, FontData, FontGlyph};\n".to_string());
-    code.push(atlas.to_code("create_atlas"));
-    if let Err(err) = std::fs::write("const.rs", &code.join("\n")) {
-        error!("Failed to save creation code: {err:?}");
-    }*/
 }
 
-fn read_images(dir: ReadDir) -> Vec<DynamicImage> {
-    let mut images = Vec::new();
+fn read_images(dir: ReadDir, scales: &HashMap<usize, f32>) -> Vec<DynamicImage> {
+    let mut images_map = HashMap::new();
     for entry in dir {
-        let entry = entry.expect("failed to read dir entry");
-        if let Ok(reader) = ImageReader::open(entry.path())
-            && let Ok(image) = reader.decode() {
+        if let Ok(entry) = entry
+            && let Ok(reader) = ImageReader::open(entry.path())
+            && let Ok(mut image) = reader.decode() {
+            let file_id = entry.file_name().into_string().unwrap_or_default()
+                .chars().filter(|c| c.is_numeric()).collect::<String>();
+            let file_id = file_id.parse::<usize>().unwrap_or_default();
+
+            if let Some(scale) = scales.get(&file_id) {
+                info!("Scale image {file_id}: {scale}");
+                let nwidth = (image.width() as f32 * scale) as u32;
+                let nheight = (image.height() as f32 * scale) as u32;
+                image = image.resize(nwidth, nheight, FilterType::Lanczos3);
+            }
+
             let width = image.width();
             let height = image.height();
-            info!("Read image {:?}: {width}x{height}", entry.path());
+            info!("Read image {file_id}: {width}x{height}");
+            images_map.insert(file_id, image);
+        }
+    }
+    let mut ids = images_map.keys().copied().collect::<Vec<_>>();
+    ids.sort();
+    let mut images = Vec::new();
+    for id in ids {
+        if let Some(image) = images_map.remove(&id) {
             images.push(image);
         }
     }
@@ -88,4 +101,14 @@ pub fn optimize_atlas_items(atlas: &Atlas, scenario: &Scenario, target_width: i3
         }
     }
     sizes
+}
+
+pub fn atlas_hash(atlas: &Atlas) -> String {
+    let mut hasher = DefaultHasher::new();
+    let mut items = atlas.items.values().copied().collect::<Vec<_>>();
+    items.sort_by_key(|a| a.id);
+    for item in items {
+        item.hash(&mut hasher);
+    }
+    format!("{:x}", hasher.finish())
 }

@@ -7,16 +7,19 @@ use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
 use crate::components::resources::{ImagesBank, ImageSpriteDialog, TextLine, TextSpriteDialog};
+use crate::controllers::project_controller::ProjectController;
 use crate::controllers::resources::ResourcesController;
+use crate::controllers::storage::LocalStorage;
 
 #[component]
-pub fn Workspace(resources_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
+pub fn Workspace(project_controller: ProjectController, resources_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
     rsx! {
         main {
             id: "workspace_main",
             class: "workspace",
             BalchugPreview {controller: edit_controller.clone()},
             Sidebar {
+                project_controller: project_controller.clone(),
                 edit_controller: edit_controller.clone(),
                 resources_controller: resources_controller.clone(),
             },
@@ -70,9 +73,10 @@ pub fn BalchugPreview(controller: SpriteEditController) -> Element {
 }
 
 #[component]
-pub fn Sidebar(resources_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
+pub fn Sidebar(project_controller: ProjectController, resources_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
     let rc0 = resources_controller.clone();
     let rc1 = resources_controller.clone();
+    let rc2 = resources_controller.clone();
 
     rsx! {
         aside {
@@ -82,20 +86,27 @@ pub fn Sidebar(resources_controller: ResourcesController, edit_controller: Sprit
                 id: "sidebar_tabs",
                 class: "tab-navigation",
                 button {
-                    id: "sidebar_btn_props",
+                    id: "sidebar_tab_project",
                     class: format!("tab-btn{}", if rc0.get_cur_tab() == 0 {" active"} else {""}),
                     onclick: move |_| {rc0.set_cur_tab(0);},
+                    "Project"
+                }
+                button {
+                    id: "sidebar_tab_props",
+                    class: format!("tab-btn{}", if rc1.get_cur_tab() == 1 {" active"} else {""}),
+                    onclick: move |_| {rc1.set_cur_tab(1);},
                     "Resources"
                 }
                 button {
-                    id: "sidebar_btn_timeline",
-                    class: format!("tab-btn{}", if rc1.get_cur_tab() == 1 {" active"} else {""}),
-                    onclick: move |_| {rc1.set_cur_tab(1);},
+                    id: "sidebar_tab_timeline",
+                    class: format!("tab-btn{}", if rc2.get_cur_tab() == 2 {" active"} else {""}),
+                    onclick: move |_| {rc2.set_cur_tab(2);},
                     "Timeline"
                 }
             }
             match rc0.get_cur_tab() {
-                0 => rsx! {ResourcesPanel {controller: resources_controller.clone()}},
+                0 => rsx! {ProjectPanel {controller: project_controller.clone()}},
+                1 => rsx! {ResourcesPanel {controller: resources_controller.clone()}},
                 _ => rsx! {TimelinePanel {controller: edit_controller.clone()}},
             }
         }
@@ -103,7 +114,38 @@ pub fn Sidebar(resources_controller: ResourcesController, edit_controller: Sprit
 }
 
 #[component]
-pub fn ResourcesPanel(controller: ResourcesController) -> Element {
+fn ProjectPanel(controller: ProjectController) -> Element {
+    rsx! {
+        div {
+            id: "sidebar_container_project",
+            class: "panel-box",
+            section {
+                id: "text_section",
+                class: "panel-card",
+                button {
+                    id: "project_btn_new",
+                    class: "btn btn-danger",
+                    onclick: move |_| {
+                        LocalStorage::remove("project_id");
+                        window().map(|window| window.location().reload());
+                    },
+                    "New Project"
+                }
+                button {
+                    id: "project_btn_export",
+                    class: "btn btn-secondary",
+                    onclick: move |_| {
+                        controller.download_distributive();
+                    },
+                    "Export Project"
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn ResourcesPanel(controller: ResourcesController) -> Element {
     rsx! {
         div {
             id: "sidebar_container_timeline",
@@ -117,7 +159,7 @@ pub fn ResourcesPanel(controller: ResourcesController) -> Element {
 }
 
 #[component]
-pub fn TimelinePanel(controller: SpriteEditController) -> Element {
+fn TimelinePanel(controller: SpriteEditController) -> Element {
     rsx! {
         div {
             id: "sidebar_container_timeline",

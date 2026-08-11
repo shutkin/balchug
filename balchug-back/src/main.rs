@@ -7,7 +7,9 @@ use crate::server::Server;
 use actix_cors::Cors;
 use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::web::PayloadConfig;
-use actix_web::{App, HttpServer, Responder, get, http, post, web};
+use actix_web::{get, http, post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::http::header;
+use actix_web::http::header::{DispositionParam, DispositionType};
 use balchug_common::api::{AddImageResponse, OpenProjectResponse, StartProjectResponse, UpdateScenarioRq, UpdateSpritesPropsRq};
 use log::info;
 
@@ -97,6 +99,25 @@ async fn get_project(path: web::Path<String>, server: web::Data<Server>)
     Ok(web::Json(resp))
 }
 
+#[get("/{id}/export")]
+async fn export_project(path: web::Path<String>, server: web::Data<Server>)
+                     -> Result<HttpResponse, actix_web::Error> {
+    let id = path.into_inner();
+    let project = server
+        .get_project(&id)
+        .ok_or(ErrorNotFound("Project not found"))?;
+    let result = server.compile(project).map_err(ErrorInternalServerError)?;
+    let content_disposition = header::ContentDisposition {
+        disposition: DispositionType::Attachment,
+        parameters: vec![DispositionParam::Filename(format!("dist-{}.zip", id))],
+    };
+    Ok(
+        HttpResponse::Ok()
+        .insert_header(content_disposition)
+        .body(result)
+    )
+}
+
 #[tokio::main]
 async fn main() -> std::io::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
@@ -118,6 +139,7 @@ async fn main() -> std::io::Result<()> {
             .service(update_sprites_props)
             .service(update_scenario)
             .service(get_project)
+            .service(export_project)
     })
     .bind(("0.0.0.0", port))?
     .run()

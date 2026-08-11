@@ -6,7 +6,8 @@ edition = "2024"
 [dependencies]
 dioxus = { version = "0.7" }
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["HtmlCanvasElement", "Window", "Storage"] }
+web-sys = { version = "0.3", features = ["HtmlCanvasElement", "HtmlAnchorElement", "Window", "Storage", "Blob", "Url"] }
+js-sys = "0.3"
 reqwest = { version = "0.13", features = ["json"] }
 infer = "0.22"
 instant = { version = "0.1.13", features = ["now", "wasm-bindgen"] }

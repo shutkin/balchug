@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::hash::{DefaultHasher, Hash, Hasher};
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Serialize, Deserialize, Debug, Hash)]
@@ -27,18 +26,6 @@ impl Default for Atlas {
             height: 4,
             items: HashMap::new(),
         }
-    }
-}
-
-impl Atlas {
-    pub fn hash(&self) -> String {
-        let mut hasher = DefaultHasher::new();
-        let mut items = self.items.values().cloned().collect::<Vec<_>>();
-        items.sort_by_key(|a| a.id);
-        for item in items {
-            item.hash(&mut hasher);
-        }
-        format!("{:x}", hasher.finish())
     }
 }
 

@@ -147,11 +147,16 @@ impl BalchugEngine {
     }
 
     pub fn interpolate_state(&self, animation: &SpriteAnimation, offset: f32) -> Option<SpriteState> {
-        if let Some(fixed_state) = animation.states.iter()
-            .find(|state| (offset - state.offset).abs() < 0.05) {
-            Some(*fixed_state)
+        if let Some(mut result) = self.context.sprite_util.get().interpolate_state(animation, offset) {
+            if let Some(fixed_state) = animation.states.iter()
+                .find(|state| (offset - state.offset).abs() < 0.0333) {
+                result.easing = fixed_state.easing;
+                result.from_bottom = fixed_state.from_bottom;
+                result.y = fixed_state.y;
+            }
+            Some(result)
         } else {
-            self.context.sprite_util.get().interpolate_state(animation, offset)
+            None
         }
     }
     

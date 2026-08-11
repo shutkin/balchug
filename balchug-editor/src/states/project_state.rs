@@ -29,7 +29,7 @@ impl ProjectState {
         Self {
             aspect_ratio: Store::new(9.0 / 16.0),
             sprite_properties: Store::new(HashMap::new()),
-            cur_tab: Signal::new(0),
+            cur_tab: Signal::new(1),
             selected_sprite: Signal::new(None),
         }
     }
@@ -47,7 +47,7 @@ impl ProjectState {
     
     pub fn select_sprite(&mut self, sprite_id: usize) {
         self.selected_sprite.set(Some(sprite_id));
-        self.cur_tab.set(1);
+        self.cur_tab.set(2);
     }
     
     pub fn unselect_sprite(&mut self) {

@@ -3,3 +3,4 @@ pub mod api;
 pub mod resources;
 pub mod storage;
 pub mod updates_sender;
+pub mod project_controller;

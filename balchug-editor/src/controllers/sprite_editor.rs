@@ -61,7 +61,7 @@ impl SpriteEditController {
 
         controller
     }
-    
+
     pub fn get_canvas_rect(&self) -> F32Rect {
         self.canvas_rect.get()
     }
@@ -352,7 +352,7 @@ impl SpriteEditController {
         engine: &BalchugEngine,
         new_rect: F32Rect,
     ) -> SpriteEditorState {
-        if cur_state.timeline_points.states_indices.len() == 2 {
+        if cur_state.timeline_points.states_indices.len() == 2 && animation.states.len() == 2 {
             let canvas_rect = self.canvas_rect.get();
             let first_index = cur_state.timeline_points.states_indices[0];
             let last_index = cur_state.timeline_points.states_indices[cur_state.timeline_points.states_indices.len() - 1];
@@ -360,7 +360,8 @@ impl SpriteEditController {
                 new_sprite_state,
                 cur_state.parallax_factor,
                 canvas_rect.width / canvas_rect.height,
-                Self::sprite_proportion(engine, &animation)
+                Self::sprite_proportion(engine, &animation),
+                animation.states[first_index].from_bottom,
             );
             animation.states[first_index] = first_state;
             animation.states[last_index] = last_state;
@@ -371,21 +372,23 @@ impl SpriteEditController {
         cur_state.change_sprite_rect(new_rect, new_sprite_state)
     }
 
-    fn scroll_adjust(cur_state: SpriteState, parallax_factor: f32, aspect_ratio: f32, item_proportion: f32) -> (SpriteState, SpriteState) {
+    fn scroll_adjust(cur_state: SpriteState, parallax_factor: f32, aspect_ratio: f32,
+                     item_proportion: f32, first_is_from_bottom: bool) -> (SpriteState, SpriteState) {
+        let cur_y = if cur_state.from_bottom {1.0 / aspect_ratio - cur_state.y} else {cur_state.y};
         let end_y = -cur_state.width / item_proportion;
-        let end_offset = cur_state.offset + (cur_state.y - end_y) * parallax_factor;
+        let end_offset = cur_state.offset + (cur_y - end_y) * parallax_factor;
         let mut start_y = 1.0 / aspect_ratio;
-        let mut start_offset = cur_state.offset - (start_y - cur_state.y) * parallax_factor;
+        let mut start_offset = cur_state.offset - (start_y - cur_y) * parallax_factor;
         if start_offset < 0.0 {
             let f = cur_state.offset / (cur_state.offset - start_offset);
-            start_y = cur_state.y + f * (start_y - cur_state.y) / parallax_factor;
+            start_y = cur_y + f * (start_y - cur_y) / parallax_factor;
             start_offset = 0.0;
         }
         let first_state = SpriteState {
             offset: start_offset,
             x: cur_state.x,
-            y: 1.0 / aspect_ratio - start_y,
-            from_bottom: true,
+            y: if first_is_from_bottom {1.0 / aspect_ratio - start_y} else {start_y},
+            from_bottom: first_is_from_bottom,
             width: cur_state.width,
             color: cur_state.color,
             easing: cur_state.easing,

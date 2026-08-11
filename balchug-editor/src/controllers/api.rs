@@ -5,6 +5,8 @@ use dioxus::html::bytes::Bytes;
 use dioxus::prelude::*;
 use reqwest::Client;
 use reqwest::header::CONTENT_TYPE;
+use wasm_bindgen::{JsCast, JsValue};
+use web_sys::{Blob, HtmlAnchorElement, Url};
 use balchug_common::api::{AddImageResponse, OpenProjectResponse, ProjectSpriteProperties, StartProjectResponse, UpdateScenarioRq, UpdateSpritesPropsRq};
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
@@ -36,6 +38,14 @@ impl Api {
         !self.project_id.borrow().is_empty()
     }
 
+    fn handle_reqwest_error(msg: &str, err: reqwest::Error) {
+        error!("{msg}: {err}");
+        if let Some(window) = web_sys::window()
+            && let Err(js_err) = window.alert_with_message(&format!("{err}")) {
+            error!("{js_err:?}");
+        }
+    }
+
     pub async fn start(&mut self) -> Option<String> {
         match self.http_client.post(format!("{SERVER_URL}/start")).send().await {
             Ok(response) => {
@@ -47,7 +57,7 @@ impl Api {
                 }
             }
             Err(err) => {
-                error!("Failed to start: {err}");
+                Self::handle_reqwest_error("Failed to start", err);
             }
         }
         None
@@ -63,7 +73,7 @@ impl Api {
                 }
             }
             Err(err) => {
-                error!("Failed to upload image: {err}");
+                Self::handle_reqwest_error("Failed to upload image", err);
             }
         }
         None
@@ -87,7 +97,7 @@ impl Api {
                 info!("Sprites properties updated");
             }
             Err(err) => {
-                error!("Failed to update sprites properties: {err}");
+                Self::handle_reqwest_error("Failed to update sprites properties", err);
             }
         }
     }
@@ -102,7 +112,7 @@ impl Api {
                 info!("Scenario updated");
             }
             Err(err) => {
-                error!("Failed to update scenario: {err}");
+                Self::handle_reqwest_error("Failed to update scenario",err);
             }
         }
     }
@@ -116,10 +126,57 @@ impl Api {
                 }
             }
             Err(err) => {
-                error!("Failed to get project: {err}");
+                Self::handle_reqwest_error("Failed to get project", err);
             }
         }
         None
+    }
+
+    pub async fn download_dist(&self) {
+        let url = format!("{SERVER_URL}/{}/export", self.project_id.borrow());
+        match self.http_client.get(url).send().await {
+            Ok(response) => {
+                if let Err(err) = Self::save_bytes(response.bytes().await, "dist.zip") {
+                    error!("Failed to save bytes: {err:?}");
+                }
+            }
+            Err(err) => {
+                Self::handle_reqwest_error("Failed to download dist", err);
+            }
+        }
+    }
+
+    fn save_bytes(bytes: std::result::Result<Bytes, reqwest::Error>, filename: &str) -> Result<(), JsValue> {
+        let bytes = bytes.map_err(|e| JsValue::from_str(&e.to_string()))?;
+
+        // Create an array containing our bytes data
+        let uint8_array = js_sys::Uint8Array::from(&bytes[..]);
+        let array = js_sys::Array::new();
+        array.push(&uint8_array);
+
+        // Build the Blob object
+        let blob = Blob::new_with_buffer_source_sequence(&array)?;
+
+        // 4. Create a temporary local URL for the blob
+        let download_url = Url::create_object_url_with_blob(&blob)?;
+
+        // 5. Create a hidden <a> tag and trigger download
+        let window = web_sys::window().ok_or(JsValue::from_str("Failed to get window"))?;
+        let document = window.document().ok_or(JsValue::from_str("Failed to get document"))?;
+        let body = document.body().ok_or(JsValue::from_str("Failed to get document body"))?;
+
+        let link = document.create_element("a")?.dyn_into::<HtmlAnchorElement>()?;
+        link.set_href(&download_url);
+        link.set_download(filename);
+
+        body.append_child(&link)?;
+        link.click();
+
+        // 6. Clean up memory and remove element
+        body.remove_child(&link)?;
+        Url::revoke_object_url(&download_url)?;
+
+        Ok(())
     }
 
     pub fn assets_url(&self, path: &str) -> String {

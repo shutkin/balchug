@@ -7,6 +7,7 @@ use balchug_common::scenario::Scenario;
 use balchug_engine::BalchugEngine;
 use crate::components::workspace::Workspace;
 use crate::controllers::api::Api;
+use crate::controllers::project_controller::ProjectController;
 use crate::controllers::resources::ResourcesController;
 use crate::controllers::sprite_editor::SpriteEditController;
 use crate::controllers::storage::LocalStorage;
@@ -152,6 +153,8 @@ fn App() -> Element {
             }
         }
     });
+    
+    let project_controller = ProjectController::new(api.clone());
 
     rsx! {
         Title { "Balchug Editor" }
@@ -159,6 +162,7 @@ fn App() -> Element {
         document::Link { rel: "stylesheet", href: MAIN_CSS }
 
         Workspace {
+            project_controller,
             resources_controller,
             edit_controller,
         }
