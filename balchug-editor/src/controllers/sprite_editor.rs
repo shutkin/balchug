@@ -3,7 +3,7 @@ use crate::states::project_state::ProjectState;
 use crate::states::sprite_editor::SpriteEditorState;
 use balchug_common::F32Rect;
 use balchug_common::sprite::{Easing, SpriteAnimation, SpriteData, SpriteState};
-use balchug_engine::{BalchugEngine, OffsetListener, start_engine};
+use balchug_engine::{start_engine, BalchugEngine, OffsetListener, STATE_OFFSET_LAG};
 use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
@@ -442,17 +442,21 @@ impl SpriteEditController {
     ) {
         for &index in &points.states_indices {
             let state = states[index];
-            let dy = (new_state.offset - state.offset) / parallax_factor;
-            let modified_state = SpriteState {
-                offset: state.offset,
-                x: new_state.x,
-                y: if state.from_bottom {new_state.y - dy} else {new_state.y + dy},
-                from_bottom: state.from_bottom,
-                width: new_state.width,
-                color: new_state.color,
-                easing: new_state.easing,
-            };
-            states[index] = modified_state;
+            if (new_state.offset - state.offset).abs() < STATE_OFFSET_LAG || points.states_indices.len() < 2 {
+                states[index] = new_state;
+            } else {
+                let dy = (new_state.offset - state.offset) / parallax_factor;
+                let modified_state = SpriteState {
+                    offset: state.offset,
+                    x: new_state.x,
+                    y: if state.from_bottom { new_state.y - dy } else { new_state.y + dy },
+                    from_bottom: state.from_bottom,
+                    width: new_state.width,
+                    color: new_state.color,
+                    easing: new_state.easing,
+                };
+                states[index] = modified_state;
+            }
         }
     }
 
@@ -487,7 +491,8 @@ impl SpriteEditController {
                 }
             }
             if let Some(engine) = self.engine.borrow().as_ref()
-                && let Some(animation) = engine.get_sprites_animations(Some(cur_state.timeline_points.sprite_index)).first().cloned() {
+                && let Some(mut animation) = engine.get_sprites_animations(Some(cur_state.timeline_points.sprite_index)).first().cloned() {
+                Self::apply_states_change(&cur_state.timeline_points, &mut animation.states, new_sprite_state, cur_state.parallax_factor);
                 let new_rect = Self::scale_rect(engine, &animation, new_sprite_state, self.canvas_rect.get());
                 self.state.set(Some(self.update_editor_state(cur_state, new_sprite_state, animation, engine, new_rect)));
             }

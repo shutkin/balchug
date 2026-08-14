@@ -186,7 +186,7 @@ pub const INDEX_HTML: &str = r#"
     </style>
 </head>
 <body>
-<div style="width: 100vw; height: 100vh;">
+<div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden;">
     <canvas id="canvas" style="display: block; width: 100%; height: 100%"></canvas>
 </div>
 <div id="debug_div" style="position: absolute; top: 0; left: 0; padding: 10px; font-family: monospace; color: gray"></div>
