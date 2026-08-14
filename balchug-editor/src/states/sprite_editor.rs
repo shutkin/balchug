@@ -8,7 +8,6 @@ pub struct SpriteEditorState {
     pub parallax_factor: f32,
     pub rect: F32Rect,
     pub sprite_state: SpriteState,
-    pub original_sprite_state: SpriteState,
 }
 
 impl SpriteEditorState {
@@ -18,7 +17,6 @@ impl SpriteEditorState {
             parallax_factor: self.parallax_factor,
             rect,
             sprite_state,
-            original_sprite_state: self.original_sprite_state,
         }
     }
 }

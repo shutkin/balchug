@@ -1,84 +1,12 @@
 use dioxus::prelude::*;
-use balchug_common::F32Rect;
-use balchug_common::sprite::{Easing, SpriteState};
-use crate::controllers::sprite_editor::SpriteEditController;
+use crate::controllers::sprite_editor::{SpriteEditController, ALL_EASING_VARIANTS, map_easing_to_str};
 use crate::states::sprite_editor::SpriteEditorState;
-
-const EASING_LINEAR: &str = "Linear";
-const EASING_IN_CUBIC: &str = "In Cubic";
-const EASING_OUT_CUBIC: &str = "Out Cubic";
-const EASING_IN_OUT_CUBIC: &str = "In-Out Cubic";
-const EASING_IN_SINE: &str = "In Sine";
-const EASING_OUT_SINE: &str = "Out Sine";
-const EASING_IN_OUT_SINE: &str = "In-Out Sine";
-
-const ALL_EASING_VARIANTS: [Easing; 7] = [
-    Easing::Linear,
-    Easing::InCubic, Easing::OutCubic, Easing::InOutCubic,
-    Easing::InSine, Easing::OutSine, Easing::InOutSine,
-];
-
-fn map_str_to_easing(str: &str) -> Easing {
-    match str {
-        EASING_IN_CUBIC => Easing::InCubic,
-        EASING_OUT_CUBIC => Easing::OutCubic,
-        EASING_IN_OUT_CUBIC => Easing::InOutCubic,
-        EASING_IN_SINE => Easing::InSine,
-        EASING_OUT_SINE => Easing::OutSine,
-        EASING_IN_OUT_SINE => Easing::InOutSine,
-        _ => Easing::Linear,
-    }
-}
-
-fn map_easing_to_str(easing: Easing) -> &'static str {
-    match easing {
-        Easing::InCubic => EASING_IN_CUBIC,
-        Easing::OutCubic => EASING_OUT_CUBIC,
-        Easing::InOutCubic => EASING_IN_OUT_CUBIC,
-        Easing::InSine => EASING_IN_SINE,
-        Easing::OutSine => EASING_OUT_SINE,
-        Easing::InOutSine => EASING_IN_OUT_SINE,
-        _ => EASING_LINEAR,
-    }
-}
 
 #[component]
 pub fn StateEditor(controller: SpriteEditController) -> Element {
     if let Some(se) = controller.get_cur_state() {
         let mut c0 = controller.clone();
         let mut c1 = controller.clone();
-        let mut c2 = controller.clone();
-        let mut c3 = controller.clone();
-
-        let mut apply_fn = move |values: Vec<(String, FormValue)>| {
-            let mut state = c0.get_cur_state()
-                .map(|s| s.original_sprite_state).unwrap_or_default();
-            for (name, value) in values {
-                let txt = match value {
-                    FormValue::Text(txt) => txt,
-                    FormValue::File(_) => String::default(),
-                };
-                let num = txt.parse::<f32>().unwrap_or(f32::NAN);
-                if !num.is_nan() {
-                    match name.as_str() {
-                        "offset" => state.offset = num,
-                        "x" => state.x = num,
-                        "y" => state.y = num,
-                        "scale" => state.width = num,
-                        "alpha" => state.color[3] = num,
-                        _ => {}
-                    }
-                } else {
-                    match name.as_str() {
-                        "easing" => state.easing = map_str_to_easing(&txt),
-                        "from_bottom" => change_from_bottom(&mut state, &txt, c0.get_canvas_rect()),
-                        _ => {}
-                    }
-                }
-            }
-            c0.update_sprite_state(state);
-            c0.edit_mode_off();
-        };
 
         rsx! {
             section {
@@ -91,41 +19,19 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                         "State Properties"
                     }
                 }
-                form {
+                div {
                     id: "state_props_body",
                     class: "panel-body",
-                    onsubmit: move |event| {
-                        event.prevent_default();
-                        apply_fn(event.values());
-                    },
-                    StateStatsInputs {se: se.clone()},
+                    StateStatsInputs {controller: controller.clone(), se: se.clone()},
                     div {
                         id: "state_props_btn_row",
                         class: "form-row",
-                        input {
-                            id: "state_apply",
-                            class: "btn btn-primary",
-                            r#type: "submit",
-                            "Apply"
-                        }
-                        button {
-                            id: "state_cancel",
-                            class: "btn btn-secondary",
-                            onclick: move |_| {
-                                c1.update_sprite_state(se.original_sprite_state);
-                                c1.edit_mode_off();
-                            },
-                            "Cancel"
-                        }
-                        div {
-                            class: "vert-separator",
-                        }
                         if controller.is_modify_states_possible(false, true) {
                             button {
                                 id: "state_delete",
                                 class: "btn btn-danger",
                                 onclick: move |_| {
-                                    c2.remove_sprite_state();
+                                    c0.remove_sprite_state();
                                 },
                                 "Delete"
                             }
@@ -135,7 +41,7 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                                 id: "state_add",
                                 class: "btn btn-secondary",
                                 onclick: move |_| {
-                                    c3.add_new_sprite_state();
+                                    c1.add_new_sprite_state();
                                 },
                                 "Add New State"
                             }
@@ -150,7 +56,15 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
 }
 
 #[component]
-fn StateStatsInputs(se: SpriteEditorState) -> Element {
+fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> Element {
+    let mut c0 = controller.clone();
+    let mut c1 = controller.clone();
+    let mut c2 = controller.clone();
+    let mut c3 = controller.clone();
+    let mut c4 = controller.clone();
+    let mut c5 = controller.clone();
+    let mut c6 = controller.clone();
+
     rsx! {
         div {
             id: "state_props_row1",
@@ -165,6 +79,9 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
                         name: "offset",
                         value: "{round(se.sprite_state.offset)}",
                         step: "0.001",
+                        oninput: move |e| {
+                            c0.handle_input_change("offset", &e.value());
+                        },
                     }
                 }
             }
@@ -178,6 +95,9 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
                         name: "x",
                         value: "{round(se.sprite_state.x)}",
                         step: "0.001",
+                        oninput: move |e| {
+                            c1.handle_input_change("x", &e.value());
+                        },
                     }
                 }
             }
@@ -191,6 +111,9 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
                         name: "y",
                         value: "{round(se.sprite_state.y)}",
                         step: "0.001",
+                        oninput: move |e| {
+                            c2.handle_input_change("y", &e.value());
+                        },
                     }
                 }
             }
@@ -202,18 +125,20 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
                 id: "state_from_bottom",
                 class: "form-group",
                 label {
-                    "From Bottom",
+                    "Y-Axis Origin",
                     select {
-                        id: "from_bottom_select",
-                        name: "from_bottom",
-                        value: "{se.sprite_state.from_bottom}",
+                        id: "y_axis_select",
+                        name: "y_axis",
+                        oninput: move |e| {
+                            c3.handle_input_change("y_axis", &e.value());
+                        },
                         option {
                             selected: !se.sprite_state.from_bottom,
-                            "False"
+                            "Top"
                         }
                         option {
                             selected: se.sprite_state.from_bottom,
-                            "True"
+                            "Bottom"
                         }
                     }
                 }
@@ -228,6 +153,9 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
                         name: "scale",
                         value: "{round(se.sprite_state.width)}",
                         step: "0.001",
+                        oninput: move |e| {
+                            c4.handle_input_change("scale", &e.value());
+                        },
                     }
                 }
             }
@@ -241,6 +169,9 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
                         name: "alpha",
                         value: "{round(se.sprite_state.color[3])}",
                         step: "0.001",
+                        oninput: move |e| {
+                            c5.handle_input_change("alpha", &e.value());
+                        },
                     }
                 }
             }
@@ -253,6 +184,9 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
                         id: "easing_select",
                         name: "easing",
                         value: "{map_easing_to_str(se.sprite_state.easing)}",
+                        oninput: move |e| {
+                            c6.handle_input_change("easing", &e.value());
+                        },
                         for &easing in ALL_EASING_VARIANTS.iter() {
                             option {
                                 selected: se.sprite_state.easing == easing,
@@ -268,12 +202,4 @@ fn StateStatsInputs(se: SpriteEditorState) -> Element {
 
 fn round(value: f32) -> f32 {
     (value * 1000.0).round() / 1000.0
-}
-
-fn change_from_bottom(state: &mut SpriteState, value: &str, canvas_rect: F32Rect) {
-    let from_bottom = value.to_lowercase().parse::<bool>().unwrap_or_default();
-    if state.from_bottom != from_bottom {
-        state.y = canvas_rect.height / canvas_rect.width - state.y;
-        state.from_bottom = from_bottom;
-    }
 }

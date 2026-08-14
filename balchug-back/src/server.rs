@@ -91,10 +91,6 @@ impl Server {
             &scales,
         )?;
 
-        let mut lock = self.projects.write().map_err(|_| "Failed to update project")?;
-        let saved_project = lock.get_mut(&project.id).ok_or("Failed to update project")?;
-        saved_project.images_atlas = atlas_optimized.clone();
-
         let atlas_code = atlas_to_code(&atlas_optimized)?;
         let scenario_code = animations_to_code(&project.scenario.sprites)?;
         std::fs::write(format!("/tmp/balchug/{}/Cargo.toml", project.id), CARGO_TOML)?;

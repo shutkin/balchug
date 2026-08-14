@@ -2,13 +2,51 @@ use crate::components::timeline::{TimeLinePoint, TimeLinePoints};
 use crate::states::project_state::ProjectState;
 use crate::states::sprite_editor::SpriteEditorState;
 use balchug_common::F32Rect;
-use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState};
+use balchug_common::sprite::{Easing, SpriteAnimation, SpriteData, SpriteState};
 use balchug_engine::{BalchugEngine, OffsetListener, start_engine};
 use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::rc::Rc;
 use web_sys::{HtmlCanvasElement, Window};
+
+const EASING_LINEAR: &str = "Linear";
+const EASING_IN_CUBIC: &str = "In Cubic";
+const EASING_OUT_CUBIC: &str = "Out Cubic";
+const EASING_IN_OUT_CUBIC: &str = "In-Out Cubic";
+const EASING_IN_SINE: &str = "In Sine";
+const EASING_OUT_SINE: &str = "Out Sine";
+const EASING_IN_OUT_SINE: &str = "In-Out Sine";
+
+pub const ALL_EASING_VARIANTS: [Easing; 7] = [
+    Easing::Linear,
+    Easing::InCubic, Easing::OutCubic, Easing::InOutCubic,
+    Easing::InSine, Easing::OutSine, Easing::InOutSine,
+];
+
+pub fn map_str_to_easing(str: &str) -> Easing {
+    match str {
+        EASING_IN_CUBIC => Easing::InCubic,
+        EASING_OUT_CUBIC => Easing::OutCubic,
+        EASING_IN_OUT_CUBIC => Easing::InOutCubic,
+        EASING_IN_SINE => Easing::InSine,
+        EASING_OUT_SINE => Easing::OutSine,
+        EASING_IN_OUT_SINE => Easing::InOutSine,
+        _ => Easing::Linear,
+    }
+}
+
+pub fn map_easing_to_str(easing: Easing) -> &'static str {
+    match easing {
+        Easing::InCubic => EASING_IN_CUBIC,
+        Easing::OutCubic => EASING_OUT_CUBIC,
+        Easing::InOutCubic => EASING_IN_OUT_CUBIC,
+        Easing::InSine => EASING_IN_SINE,
+        Easing::OutSine => EASING_OUT_SINE,
+        Easing::InOutSine => EASING_IN_OUT_SINE,
+        _ => EASING_LINEAR,
+    }
+}
 
 #[derive(Clone)]
 pub struct SpriteEditController {
@@ -62,10 +100,6 @@ impl SpriteEditController {
         controller
     }
 
-    pub fn get_canvas_rect(&self) -> F32Rect {
-        self.canvas_rect.get()
-    }
-
     pub fn start(&self, window: Window, canvas: HtmlCanvasElement) {
         let balchug_engine = start_engine(window, canvas, Default::default());
         balchug_engine.set_offset_listener(Box::new(self.preview_offset_listener.clone()));
@@ -82,10 +116,6 @@ impl SpriteEditController {
 
     pub fn is_edit_mode(&self) -> bool {
         self.state_memo.read().is_some()
-    }
-
-    pub fn edit_mode_off(&mut self) {
-        self.state.set(None);
     }
 
     pub fn get_cur_state(&self) -> Option<SpriteEditorState> {
@@ -235,7 +265,6 @@ impl SpriteEditController {
             timeline_points: TimeLinePoints { sprite_index: sprite_id, states_indices},
             parallax_factor,
             sprite_state,
-            original_sprite_state: sprite_state,
             rect,
         }
     }
@@ -430,19 +459,38 @@ impl SpriteEditController {
     /*
     State Editor
      */
-    pub fn update_sprite_state(&mut self, new_state: SpriteState) {
-        if let Some(engine) = self.engine.borrow().as_ref()
-            && let Some(state) = self.state_memo.read().as_ref()
-            && let Some(mut sprite) = engine.get_sprites_animations(Some(state.timeline_points.sprite_index)).first().cloned() {
-            if state.timeline_points.states_indices.len() == 1 {
-                let index = state.timeline_points.states_indices[0];
-                sprite.states[index] = new_state;
+    pub fn handle_input_change(&mut self, name: &str, value: &str) {
+        if let Some(cur_state) = self.state_memo.read().cloned() {
+            let mut new_sprite_state = cur_state.sprite_state;
+            let num = value.parse::<f32>().unwrap_or(f32::NAN);
+            if !num.is_nan() {
+                match name {
+                    "offset" => new_sprite_state.offset = num,
+                    "x" => new_sprite_state.x = num,
+                    "y" => new_sprite_state.y = num,
+                    "scale" => new_sprite_state.width = num,
+                    "alpha" => new_sprite_state.color[3] = num,
+                    _ => {}
+                }
             } else {
-                Self::apply_states_change(&state.timeline_points, &mut sprite.states,
-                                          new_state, state.parallax_factor);
+                match name {
+                    "easing" => new_sprite_state.easing = map_str_to_easing(value),
+                    "y_axis" => {
+                        let from_bottom = value == "Bottom";
+                        if new_sprite_state.from_bottom != from_bottom {
+                            let canvas_rect = self.canvas_rect.get();
+                            new_sprite_state.y = canvas_rect.height / canvas_rect.width - new_sprite_state.y;
+                            new_sprite_state.from_bottom = from_bottom;
+                        }
+                    },
+                    _ => {}
+                }
             }
-            engine.set_sprite_animation_states(state.timeline_points.sprite_index, sprite.states);
-            self.scenario_update.set(true);
+            if let Some(engine) = self.engine.borrow().as_ref()
+                && let Some(animation) = engine.get_sprites_animations(Some(cur_state.timeline_points.sprite_index)).first().cloned() {
+                let new_rect = Self::scale_rect(engine, &animation, new_sprite_state, self.canvas_rect.get());
+                self.state.set(Some(self.update_editor_state(cur_state, new_sprite_state, animation, engine, new_rect)));
+            }
         }
     }
 
