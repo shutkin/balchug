@@ -48,5 +48,5 @@ pub struct SpriteImageData {
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct SpriteTextData {
     pub text: String,
-    pub relative_height: f32,
+    pub size: u8,
 }

@@ -57,9 +57,9 @@ pub fn animations_to_code(animations: &[SpriteAnimation]) -> Result<String, Comm
             SpriteData::Text(txt) => {
                 write!(
                     code,
-                    "SpriteData::Text(SpriteTextData{{text:{:?}.to_string(),relative_height:{:?}}})",
+                    "SpriteData::Text(SpriteTextData{{text:{:?}.to_string(),size:{:?}}})",
                     txt.text,
-                    txt.relative_height
+                    txt.size
                 )?;
             }
         }

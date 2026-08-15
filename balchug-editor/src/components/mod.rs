@@ -7,3 +7,4 @@ pub mod timeline;
 mod state_editor;
 mod overlay;
 mod resources;
+mod sprite_props;

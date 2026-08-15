@@ -28,6 +28,7 @@ pub mod settings;
 mod text_util;
 
 pub const STATE_OFFSET_LAG: f32 = 0.0333;
+pub const TEXT_SIZE_FACTOR: f32 = 0.002;
 
 pub trait OffsetListener {
     fn offset_change(&mut self, offset: f32);
@@ -197,7 +198,7 @@ impl BalchugEngine {
     }
 
     pub fn measure_text(&self, data: &SpriteTextData, scale: f32) -> f32 {
-        measure_text_line(&data.text, data.relative_height, scale, &self.context.font.borrow())
+        measure_text_line(&data.text, data.size, scale, &self.context.font.borrow())
     }
 }
 

@@ -119,14 +119,14 @@ fn App() -> Element {
     let edit_controller = SpriteEditController::new(
         engine.clone(),
         project_state.clone(),
-        scenario_update_signal,
-        sprites_update_signal.clone(),
+        scenario_update_signal.clone(),
     );
     let resources_controller = ResourcesController::new(
         api.clone(),
         engine.clone(),
         project_state.clone(),
-        sprites_update_signal,
+        sprites_update_signal.clone(),
+        scenario_update_signal.clone(),
     );
 
     // open existing project
@@ -149,10 +149,7 @@ fn App() -> Element {
             project_state_clone.borrow_mut().sprite_properties.replace(sprite_props_map);
 
             if let Some(engine) = engine_clone.borrow().as_ref() {
-                let mut sprites = resp.scenario.sprites.clone();
-                sprites[1].smooth_factor = 0.0;
-                sprites[2].smooth_factor = 0.0;
-                sprites[3].smooth_factor = 0.0;
+                let sprites = resp.scenario.sprites.clone();
                 engine.set_scenario(sprites);
             }
         }

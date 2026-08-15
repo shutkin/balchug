@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use balchug_common::atlas::{AtlasItem, FontData};
 use balchug_common::sprite::{Sprite, SpriteState, SpriteTextData};
 use crate::sprite_util::state_y;
+use crate::TEXT_SIZE_FACTOR;
 
 #[derive(Copy, Clone)]
 pub struct TextUtil {
@@ -15,7 +16,7 @@ impl TextUtil {
 
     pub fn arrange_text_line(&self, line: &SpriteTextData, cur_state: &SpriteState, font: &FontData, atlas_items: &HashMap<usize, AtlasItem>) -> Vec<Sprite> {
         let mut result = Vec::new();
-        let scale = cur_state.width * line.relative_height / font.height;
+        let scale = cur_state.width * line.size as f32 * TEXT_SIZE_FACTOR / font.height;
         let (mut cx, cy) = (cur_state.x, state_y(cur_state, self.height) + font.ascend * scale);
         for c in line.text.chars() {
             if c.is_control() {
@@ -46,8 +47,8 @@ impl TextUtil {
     }
 }
 
-pub fn measure_text_line(text: &str, height: f32, scale: f32, font: &FontData) -> f32 {
-    let scale = scale * height / font.height;
+pub fn measure_text_line(text: &str, size: u8, scale: f32, font: &FontData) -> f32 {
+    let scale = scale * size as f32 * TEXT_SIZE_FACTOR / font.height;
     let mut cx = 0.0;
     for c in text.chars() {
         if c.is_control() {

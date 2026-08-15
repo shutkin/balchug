@@ -7,6 +7,7 @@ use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
 use crate::components::resources::{ImagesBank, ImageSpriteDialog, TextLine, TextSpriteDialog};
+use crate::components::sprite_props::SpritePropsDialog;
 use crate::controllers::project_controller::ProjectController;
 use crate::controllers::resources::ResourcesController;
 use crate::controllers::storage::LocalStorage;
@@ -107,7 +108,7 @@ pub fn Sidebar(project_controller: ProjectController, resources_controller: Reso
             match rc0.get_cur_tab() {
                 0 => rsx! {ProjectPanel {controller: project_controller.clone()}},
                 1 => rsx! {ResourcesPanel {controller: resources_controller.clone()}},
-                _ => rsx! {TimelinePanel {controller: edit_controller.clone()}},
+                _ => rsx! {TimelinePanel {controller: edit_controller.clone(), resources_controller: resources_controller.clone()}},
             }
         }
     }
@@ -159,13 +160,14 @@ fn ResourcesPanel(controller: ResourcesController) -> Element {
 }
 
 #[component]
-fn TimelinePanel(controller: SpriteEditController) -> Element {
+fn TimelinePanel(controller: SpriteEditController, resources_controller: ResourcesController) -> Element {
     rsx! {
         div {
             id: "sidebar_container_timeline",
             class: "panel-box",
-            TimeLine {controller: controller.clone()}
+            TimeLine {controller: controller.clone(), resources_controller: resources_controller.clone()}
             StateEditor {controller: controller.clone()}
+            SpritePropsDialog {controller: resources_controller.clone()}
         }
     }
 }

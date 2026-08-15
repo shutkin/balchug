@@ -3,6 +3,7 @@ use dioxus::html::geometry::WheelDelta;
 use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use balchug_common::sprite::SpriteState;
+use crate::controllers::resources::ResourcesController;
 use crate::controllers::sprite_editor::SpriteEditController;
 
 const LAYER_WIDTH: i32 = 24;
@@ -30,7 +31,7 @@ pub struct TimeLinePoints {
 }
 
 #[component]
-pub fn TimeLine(controller: SpriteEditController) -> Element {
+pub fn TimeLine(controller: SpriteEditController, resources_controller: ResourcesController) -> Element {
     let c0 = controller.clone();
     let mut c1 = controller.clone();
     let c2 = controller.clone();
@@ -59,8 +60,13 @@ pub fn TimeLine(controller: SpriteEditController) -> Element {
         div {
             id: "timeline_titles",
             class: "timeline-titles",
-            for (i, title) in titles.read().iter().enumerate() {
-                SpriteControl {i, title, controller: c4.clone()}
+            for (sprite_id, title) in titles.read().iter().enumerate() {
+                SpriteControl {
+                    sprite_id,
+                    title,
+                    controller: c4.clone(),
+                    resources_controller: resources_controller.clone(),
+                }
             }
         }
         div {
@@ -116,26 +122,27 @@ pub fn TimeLine(controller: SpriteEditController) -> Element {
 }
 
 #[component]
-fn SpriteControl(i: usize, title: String, controller: SpriteEditController) -> Element {
+fn SpriteControl(sprite_id: usize, title: String, controller: SpriteEditController, resources_controller: ResourcesController) -> Element {
     let mut c0 = controller.clone();
-    let mut c1 = controller.clone();
+    let rc0 = resources_controller.clone();
     rsx! {
         div {
-            id: "sprite_{i}_control",
+            id: "sprite_{sprite_id}_control",
             class: "timeline-sprite-control",
             style: "width:{LAYER_WIDTH - 4}px",
             button {
-                id: "sprite_{i}_remove",
-                class: "btn-small btn-danger",
+                id: "sprite_{sprite_id}_edit",
+                class: "btn-small btn-secondary",
                 onclick: move |_| {
-                    c0.remove_sprite(i);
+                    info!("Set edit sprite signal to {sprite_id}");
+                    rc0.get_edit_sprite_signal().set(Some(sprite_id));
                 },
-                "-"
+                "."
             }
             div {
                 class: "timeline-sprite-title",
                 onclick: move |_| {
-                    c1.set_timeline_sprite(i);
+                    c0.set_timeline_sprite(sprite_id);
                 },
                 "{title}"
             }

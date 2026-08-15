@@ -91,7 +91,7 @@ fn ImageAsset(controller: ResourcesController, id: usize, url: String) -> Elemen
                 id: format!("image_{id}_put"),
                 class: "btn btn-secondary",
                 onclick: move |_| {
-                    controller.get_image_id_signal().set(Some(id));
+                    controller.get_image_adding_signal().set(Some(id));
                 },
                 "Put"
             }
@@ -102,7 +102,7 @@ fn ImageAsset(controller: ResourcesController, id: usize, url: String) -> Elemen
 #[component]
 pub fn ImageSpriteDialog(mut controller: ResourcesController) -> Element {
     rsx! {
-        if let Some(image_id) = *controller.get_image_id_signal().read() {
+        if let Some(image_id) = *controller.get_image_adding_signal().read() {
             div {
                 id: "sprite_dialog_overlay",
                 class: "modal-overlay",
@@ -113,7 +113,7 @@ pub fn ImageSpriteDialog(mut controller: ResourcesController) -> Element {
                         id: "sprite_dialog_body",
                         class: "panel-body",
                         onsubmit: move |e| {
-                            controller.get_image_id_signal().set(None);
+                            controller.get_image_adding_signal().set(None);
                             let (template, props) = parse_sprite_props(e.values(), Some(image_id));
                             controller.add_new_sprite_animation(template, props);
                             e.prevent_default();
@@ -169,7 +169,7 @@ pub fn ImageSpriteDialog(mut controller: ResourcesController) -> Element {
 #[component]
 pub fn TextSpriteDialog(mut controller: ResourcesController) -> Element {
     rsx! {
-        if *controller.get_text_edit_open().read() {
+        if *controller.get_text_adding_open().read() {
             div {
                 id: "sprite_dialog_overlay",
                 class: "modal-overlay",
@@ -180,7 +180,7 @@ pub fn TextSpriteDialog(mut controller: ResourcesController) -> Element {
                         id: "sprite_dialog_body",
                         class: "panel-body",
                         onsubmit: move |e| {
-                            controller.get_text_edit_open().set(false);
+                            controller.get_text_adding_open().set(false);
                             let (template, props) = parse_sprite_props(e.values(), None);
                             controller.add_new_sprite_animation(template, props);
                             e.prevent_default();
@@ -209,8 +209,8 @@ pub fn TextSpriteDialog(mut controller: ResourcesController) -> Element {
                             select {
                                 id: "text_size_select",
                                 name: "size",
-                                for i in 0..=20 {
-                                    option {"{i + 10}"}
+                                for i in 0..=15 {
+                                    option {"{i + 15}"}
                                 }
                             }
                         }
@@ -256,7 +256,7 @@ fn parse_sprite_props(values: Vec<(String, FormValue)>, image_id: Option<usize>)
     let mut smooth_factor = 0.5;
     let mut data = SpriteTextData {
         text: String::new(),
-        relative_height: 0.0,
+        size: 15,
     };
     for (name, value) in values {
         let v = match value {
@@ -267,7 +267,7 @@ fn parse_sprite_props(values: Vec<(String, FormValue)>, image_id: Option<usize>)
             "title" => props.title = v,
             "parallax" => props.parallax_factor = v.parse::<f32>().unwrap_or(1.0),
             "smoothness" => smooth_factor = v.parse::<f32>().unwrap_or(0.5),
-            "size" => data.relative_height = v.parse::<i32>().unwrap_or(10) as f32 * 0.002,
+            "size" => data.size = v.parse::<u8>().unwrap_or(15),
             "text" => data.text = v,
             _ => {}
         }
@@ -302,7 +302,7 @@ pub fn TextLine(controller: ResourcesController) -> Element {
                 id: "add_text_line",
                 class: "btn btn-secondary",
                 onclick: move |_| {
-                    c0.get_text_edit_open().set(true);
+                    c0.get_text_adding_open().set(true);
                 },
                 "Add Text Line"
             }

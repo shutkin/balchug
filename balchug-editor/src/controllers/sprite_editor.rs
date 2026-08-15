@@ -3,7 +3,7 @@ use crate::states::project_state::ProjectState;
 use crate::states::sprite_editor::SpriteEditorState;
 use balchug_common::F32Rect;
 use balchug_common::sprite::{Easing, SpriteAnimation, SpriteData, SpriteState};
-use balchug_engine::{start_engine, BalchugEngine, OffsetListener, STATE_OFFSET_LAG};
+use balchug_engine::{start_engine, BalchugEngine, OffsetListener, STATE_OFFSET_LAG, TEXT_SIZE_FACTOR};
 use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
@@ -57,7 +57,6 @@ pub struct SpriteEditController {
     canvas_rect: Rc<Cell<F32Rect>>,
     project_state: Rc<RefCell<ProjectState>>,
     scenario_update: Rc<Cell<bool>>,
-    sprites_update: Rc<Cell<bool>>,
 }
 
 impl PartialEq for SpriteEditController {
@@ -71,7 +70,6 @@ impl SpriteEditController {
         engine: Rc<RefCell<Option<BalchugEngine>>>,
         project_state: Rc<RefCell<ProjectState>>,
         scenario_update: Rc<Cell<bool>>,
-        sprites_update: Rc<Cell<bool>>,
     ) -> Self {
         let state = Signal::new(Option::<SpriteEditorState>::None);
         let state_memo = use_memo(move || state.read().cloned());
@@ -87,7 +85,6 @@ impl SpriteEditController {
             preview_offset_listener: PreviewOffsetListener::default(),
             canvas_rect: Rc::new(Cell::new(F32Rect::default())),
             scenario_update,
-            sprites_update,
         };
         let mut c0 = controller.clone();
         use_effect(move || {
@@ -122,7 +119,7 @@ impl SpriteEditController {
         self.state_memo.read().cloned()
     }
     
-    fn sprite_proportion(engine: &BalchugEngine, sprite_animation: &SpriteAnimation) -> f32 {
+    pub fn sprite_proportion(engine: &BalchugEngine, sprite_animation: &SpriteAnimation) -> f32 {
         match &sprite_animation.data {
             SpriteData::Image(image_data) => {
                 engine.get_atlas_item(image_data.atlas_item_id).map(|item| {
@@ -130,7 +127,7 @@ impl SpriteEditController {
                 }).unwrap_or(1.0)
             }
             SpriteData::Text(text_data) => {
-                1.0 / text_data.relative_height
+                1.0 / (text_data.size as f32 * TEXT_SIZE_FACTOR)
             }
         }
     }
@@ -156,7 +153,6 @@ impl SpriteEditController {
             sprites.retain(|sprite| sprite.sprite_id != sprite_id);
             engine.set_scenario(sprites);
             self.project_state.borrow_mut().sprite_properties.remove(&sprite_id);
-            self.sprites_update.set(true);
         }
     }
     

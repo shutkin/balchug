@@ -5,7 +5,8 @@ use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use balchug_common::atlas::Atlas;
-use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState, Easing};
+use balchug_common::sprite::{SpriteAnimation, SpriteState, Easing};
+use crate::controllers::sprite_editor::SpriteEditController;
 use crate::states::project_state::{ProjectState, SpriteProperties};
 
 #[derive(Clone)]
@@ -14,9 +15,11 @@ pub struct ResourcesController {
     thumbs: Signal<Vec<String>>,
     engine: Rc<RefCell<Option<BalchugEngine>>>,
     project_state: Rc<RefCell<ProjectState>>,
-    sprite_id: Signal<Option<usize>>,
+    adding_image_id: Signal<Option<usize>>,
     text_edit_open: Signal<bool>,
+    edit_sprite_signal: Signal<Option<usize>>,
     sprites_update_signal: Rc<Cell<bool>>,
+    scenario_update_signal: Rc<Cell<bool>>,
 }
 
 impl PartialEq for ResourcesController {
@@ -31,15 +34,18 @@ impl ResourcesController {
         engine: Rc<RefCell<Option<BalchugEngine>>>,
         project_state: Rc<RefCell<ProjectState>>,
         sprites_update_signal: Rc<Cell<bool>>,
+        scenario_update_signal: Rc<Cell<bool>>,
     ) -> Self {
         Self {
             api,
             engine,
             project_state,
             thumbs: Default::default(),
-            sprite_id: Signal::new(None),
+            adding_image_id: Signal::new(None),
             text_edit_open: Signal::new(false),
+            edit_sprite_signal: Signal::new(None),
             sprites_update_signal,
+            scenario_update_signal,
         }
     }
     
@@ -47,12 +53,16 @@ impl ResourcesController {
         self.thumbs.read().clone()
     }
     
-    pub fn get_image_id_signal(&self) -> Signal<Option<usize>> {
-        self.sprite_id
+    pub fn get_image_adding_signal(&self) -> Signal<Option<usize>> {
+        self.adding_image_id
     }
 
-    pub fn get_text_edit_open(&self) -> Signal<bool> {
+    pub fn get_text_adding_open(&self) -> Signal<bool> {
         self.text_edit_open
+    }
+
+    pub fn get_edit_sprite_signal(&self) -> Signal<Option<usize>> {
+        self.edit_sprite_signal
     }
     
     pub async fn handle_upload(&mut self, files: Vec<FileData>) {
@@ -77,18 +87,34 @@ impl ResourcesController {
         }
     }
 
+    pub fn get_sprite_props(&self, sprite_id: usize) -> Option<(SpriteProperties, SpriteAnimation)> {
+        let props = self.project_state.borrow().sprite_properties.read().get(&sprite_id).cloned()?;
+        if let Some(engine) = self.engine.borrow().as_ref()
+            && let Some(animation) = engine.get_sprites_animations(Some(sprite_id)).first().cloned() {
+            Some((props, animation))
+        } else {
+            None
+        }
+    }
+
+    pub fn set_sprite_props(&self, sprite_id: usize, props: &SpriteProperties, animation: &SpriteAnimation) {
+        if let Some(engine) = self.engine.borrow().as_ref() {
+            let mut animations = engine.get_sprites_animations(None);
+            for sprite_animation in &mut animations {
+                if sprite_animation.sprite_id == sprite_id {
+                    *sprite_animation = animation.clone();
+                }
+            }
+            engine.set_scenario(animations);
+            self.scenario_update_signal.set(true);
+        }
+        self.project_state.borrow_mut().sprite_properties.insert(sprite_id, props.clone());
+        self.sprites_update_signal.set(true);
+    }
+
     pub fn add_new_sprite_animation(&self, template: SpriteAnimation, props: SpriteProperties) {
         if let Some(engine) = self.engine.borrow().as_ref() {
-            let proportion = match &template.data {
-                SpriteData::Image(data) => {
-                    engine.get_atlas_item(data.atlas_item_id)
-                        .map(|item| item.origin_width as f32 / item.origin_height as f32)
-                        .unwrap_or(1.0)
-                },
-                SpriteData::Text(data) => {
-                    1.0 / data.relative_height
-                },
-            };
+            let proportion = SpriteEditController::sprite_proportion(engine, &template);
 
             let mut sprites = engine.get_sprites_animations(None);
             let sprite_id = sprites.len();

@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use balchug_common::scenario::Scenario;
 use balchug_common::sprite::SpriteData;
+use crate::TEXT_SIZE_FACTOR;
 
 pub fn scenario_max_offset(scenario: &Scenario) -> f32 {
     let mut max_offset = 0.0;
@@ -17,7 +18,7 @@ pub fn scenario_text_size(scenario: &Scenario, canvas_size: f32) -> f32 {
     for sprite in &scenario.sprites {
         match &sprite.data {
             SpriteData::Text(data) => {
-                sizes.push(data.relative_height * canvas_size);
+                sizes.push(data.size as f32 * TEXT_SIZE_FACTOR * canvas_size);
             }
             _ => {}
         }
