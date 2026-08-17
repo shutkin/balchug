@@ -6,11 +6,11 @@ use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
 use web_sys::window;
+use crate::components::project::ProjectControl;
 use crate::components::resources::{ImagesBank, ImageSpriteDialog, TextLine, TextSpriteDialog};
 use crate::components::sprite_props::SpritePropsDialog;
 use crate::controllers::project_controller::ProjectController;
 use crate::controllers::resources::ResourcesController;
-use crate::controllers::storage::LocalStorage;
 
 #[component]
 pub fn Workspace(project_controller: ProjectController, resources_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
@@ -30,7 +30,7 @@ pub fn Workspace(project_controller: ProjectController, resources_controller: Re
 
 #[component]
 pub fn BalchugPreview(controller: SpriteEditController) -> Element {
-    let c0 = controller.clone();
+    let mut c0 = controller.clone();
     let c1 = controller.clone();
     let c2 = controller.clone();
 
@@ -75,9 +75,9 @@ pub fn BalchugPreview(controller: SpriteEditController) -> Element {
 
 #[component]
 pub fn Sidebar(project_controller: ProjectController, resources_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
-    let rc0 = resources_controller.clone();
-    let rc1 = resources_controller.clone();
-    let rc2 = resources_controller.clone();
+    let mut rc0 = resources_controller.clone();
+    let mut rc1 = resources_controller.clone();
+    let mut rc2 = resources_controller.clone();
 
     rsx! {
         aside {
@@ -120,27 +120,7 @@ fn ProjectPanel(controller: ProjectController) -> Element {
         div {
             id: "sidebar_container_project",
             class: "panel-box",
-            section {
-                id: "text_section",
-                class: "panel-card",
-                button {
-                    id: "project_btn_new",
-                    class: "btn btn-danger",
-                    onclick: move |_| {
-                        LocalStorage::remove("project_id");
-                        window().map(|window| window.location().reload());
-                    },
-                    "New Project"
-                }
-                button {
-                    id: "project_btn_export",
-                    class: "btn btn-secondary",
-                    onclick: move |_| {
-                        controller.download_distributive();
-                    },
-                    "Export Project"
-                }
-            }
+            ProjectControl {controller}
         }
     }
 }

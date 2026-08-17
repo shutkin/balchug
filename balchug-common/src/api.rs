@@ -9,6 +9,11 @@ pub struct StartProjectResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+pub struct UpdateProjectPropertiesRq {
+    pub properties: ProjectProperties,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub struct AddImageResponse {
     pub thumbs: Vec<String>,
     pub atlas: Atlas,
@@ -17,6 +22,21 @@ pub struct AddImageResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpdateScenarioRq {
     pub scenario: Scenario,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct ProjectProperties {
+    pub name: String,
+    pub background_color: [u8; 3],
+}
+
+impl Default for ProjectProperties {
+    fn default() -> Self {
+        Self {
+            name: "Balchug Project".to_string(),
+            background_color: [0, 0, 0],
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -32,6 +52,7 @@ pub struct UpdateSpritesPropsRq {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct OpenProjectResponse {
+    pub project_properties: ProjectProperties,
     pub images_thumbs: Vec<String>,
     pub atlas: Atlas,
     pub scenario: Scenario,

@@ -36,7 +36,6 @@ pub trait OffsetListener {
 
 #[derive(Clone)]
 struct AppContext {
-    settings: Settings,
     force_rerender: Rc<Cell<bool>>,
     scroll: Rc<RefCell<Inertia>>,
     images_texture_ready: Rc<Cell<bool>>,
@@ -57,9 +56,8 @@ struct AppContext {
 }
 
 impl AppContext {
-    fn new(canvas_width: f32, canvas_height: f32, settings: Settings) -> Self {
+    fn new(canvas_width: f32, canvas_height: f32) -> Self {
         AppContext {
-            settings,
             force_rerender: Rc::new(Cell::new(false)),
             scroll: Rc::new(RefCell::new(Inertia::new(0.0))),
             images_texture_ready: Rc::new(Cell::new(false)),
@@ -200,6 +198,20 @@ impl BalchugEngine {
     pub fn measure_text(&self, data: &SpriteTextData, scale: f32) -> f32 {
         measure_text_line(&data.text, data.size, scale, &self.context.font.borrow())
     }
+
+    pub fn update_settings(&self, settings: Settings) {
+        let color = convert_color(settings.background_color);
+        self.renderer.set_background_color(color);
+        self.context.force_rerender.set(true);
+    }
+}
+
+fn convert_color(color_u8: [u8; 3]) -> [f32; 3] {
+    [
+        color_u8[0] as f32 / 255.0,
+        color_u8[1] as f32 / 255.0,
+        color_u8[2] as f32 / 255.0,
+    ]
 }
 
 fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) {
@@ -279,11 +291,11 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, settings: Setting
     let pixel_ratio = window.device_pixel_ratio().max(2.0);
 
     let gl = canvas.get_context("webgl2").unwrap().unwrap().dyn_into::<WebGl2RenderingContext>().unwrap();
-    let renderer = GlRenderer::init(gl, settings.background_color).unwrap();
+    let renderer = GlRenderer::init(gl, convert_color(settings.background_color)).unwrap();
     let (width, height) = (canvas.width(), canvas.height());
     renderer.set_sizes(width as f32, height as f32);
 
-    let ctx = AppContext::new(width as f32, height as f32, settings);
+    let ctx = AppContext::new(width as f32, height as f32);
 
     let ctx_clone = ctx.clone();
     let renderer_clone = renderer.clone();

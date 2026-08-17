@@ -10,8 +10,8 @@ use actix_web::web::PayloadConfig;
 use actix_web::{get, http, post, web, App, HttpResponse, HttpServer, Responder};
 use actix_web::http::header;
 use actix_web::http::header::{DispositionParam, DispositionType};
-use balchug_common::api::{AddImageResponse, OpenProjectResponse, StartProjectResponse, UpdateScenarioRq, UpdateSpritesPropsRq};
-use log::info;
+use balchug_common::api::{AddImageResponse, OpenProjectResponse, StartProjectResponse, UpdateProjectPropertiesRq, UpdateScenarioRq, UpdateSpritesPropsRq};
+use log::{error, info};
 
 pub type CommonError = Box<dyn std::error::Error + Send + Sync>;
 
@@ -38,6 +38,18 @@ async fn assets(path: web::Path<(String, String)>) -> Result<Vec<u8>, actix_web:
     let path = format!("./store/{}/{}", id, path.replace("_", "/"));
     let content = tokio::fs::read(path).await.map_err(ErrorInternalServerError)?;
     Ok(content)
+}
+
+#[post("/{id}/props")]
+async fn update_project_props(path: web::Path<String>, server: web::Data<Server>, rq: web::Json<UpdateProjectPropertiesRq>)
+    -> Result<String, actix_web::Error> {
+    let id = path.into_inner();
+    let project = server
+        .get_project(&id)
+        .ok_or(ErrorNotFound("Project not found"))?;
+    info!("Project {} properties update", id);
+    server.update_project_props(project, rq.properties.clone()).map_err(ErrorInternalServerError)?;
+    Ok(String::from("OK"))
 }
 
 #[post("/{id}/image")]
@@ -67,7 +79,7 @@ async fn update_sprites_props(path: web::Path<String>, server: web::Data<Server>
         .get_project(&id)
         .ok_or(ErrorNotFound("Project not found"))?;
     info!("Project {} scenario update", id);
-    server.update_sprite_props(project, &rq.sprites_properties).map_err(ErrorInternalServerError)?;
+    server.update_sprite_props(project, rq.sprites_properties.clone()).map_err(ErrorInternalServerError)?;
     Ok(String::from("OK"))
 }
 
@@ -79,7 +91,7 @@ async fn update_scenario(path: web::Path<String>, server: web::Data<Server>, rq:
         .get_project(&id)
         .ok_or(ErrorNotFound("Project not found"))?;
     info!("Project {} scenario update", id);
-    server.update_scenario(project, &rq.scenario).map_err(ErrorInternalServerError)?;
+    server.update_scenario(project, rq.scenario.clone()).map_err(ErrorInternalServerError)?;
     Ok(String::from("OK"))
 }
 
@@ -91,6 +103,7 @@ async fn get_project(path: web::Path<String>, server: web::Data<Server>)
         .get_project(&id)
         .ok_or(ErrorNotFound("Project not found"))?;
     let resp = OpenProjectResponse {
+        project_properties: project.props,
         images_thumbs: project.thumbs,
         atlas: project.images_atlas,
         scenario: project.scenario,
@@ -123,6 +136,9 @@ async fn main() -> std::io::Result<()> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     let server = Server::default();
+    if let Err(err) = server.load() {
+        error!("Server load error: {err}");
+    }
     let port = 3000;
 
     info!("Start server at port {port}");
@@ -135,6 +151,7 @@ async fn main() -> std::io::Result<()> {
             .service(root)
             .service(start)
             .service(assets)
+            .service(update_project_props)
             .service(upload_image)
             .service(update_sprites_props)
             .service(update_scenario)

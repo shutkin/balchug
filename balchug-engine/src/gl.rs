@@ -14,7 +14,7 @@ pub struct GlRenderer {
     font_texture: WebGlTexture,
     texture_size: Rc<Cell<(u32, u32)>>,
     font_size: Rc<Cell<(u32, u32)>>,
-    background_color: [f32; 3],
+    background_color: Rc<Cell<[f32; 3]>>,
 }
 
 impl GlRenderer {
@@ -118,7 +118,7 @@ impl GlRenderer {
             gl, program, txt_program, texture, font_texture,
             texture_size: Rc::new(Cell::new((0, 0))),
             font_size: Rc::new(Cell::new((0, 0))),
-            background_color,
+            background_color: Rc::new(Cell::new(background_color)),
         })
     }
 
@@ -157,8 +157,13 @@ impl GlRenderer {
         self.gl.generate_mipmap(GL::TEXTURE_2D);
     }
 
+    pub fn set_background_color(&self, color: [f32; 3]) {
+        self.background_color.set(color);
+    }
+
     pub fn render(&self, sprites: &[Sprite], txt_sprites: &[Sprite]) {
-        self.gl.clear_color(self.background_color[0], self.background_color[1], self.background_color[2], 1.0);
+        let color = self.background_color.get();
+        self.gl.clear_color(color[0], color[1], color[2], 1.0);
         self.gl.clear(GL::COLOR_BUFFER_BIT);
 
         if !sprites.is_empty() {

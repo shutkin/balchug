@@ -5,12 +5,15 @@ use crate::states::project_state::SpriteProperties;
 
 #[component]
 pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
-    let c0 = controller.clone();
+    let mut c0 = controller.clone();
     let c1 = controller.clone();
 
-    rsx! {
-        if let Some(sprite_id) = *controller.get_edit_sprite_signal().read()
-            && let Some((props, animation)) = controller.get_sprite_props(sprite_id) {
+    if let Some(sprite_id) = *controller.get_edit_sprite_signal().read()
+        && let Some((props, animation)) = controller.get_sprite_props(sprite_id) {
+        let mut parallax = use_signal(move || props.parallax_factor);
+        let mut smoothness = use_signal(move || animation.smooth_factor);
+
+        rsx! {
             div {
                 id: "sprite_dialog_overlay",
                 class: "modal-overlay",
@@ -67,7 +70,7 @@ pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
                             }
                         }
                         label {
-                            "Parallax Factor",
+                            "Parallax Factor: {parallax.read()}",
                             input {
                                 id: "sprite_dialog_parallax",
                                 name: "parallax",
@@ -75,11 +78,16 @@ pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
                                 min: "0.5",
                                 max: "2",
                                 step: "0.1",
-                                value: "{props.parallax_factor}",
+                                value: "{parallax.read()}",
+                                oninput: move |event| {
+                                    if let Ok(v) = event.value().parse::<f32>() {
+                                        parallax.set(v);
+                                    }
+                                }
                             }
                         }
                         label {
-                            "States Transition Smoothness",
+                            "States Transition Smoothness: {smoothness.read()}",
                             input {
                                 id: "sprite_dialog_smoothness",
                                 name: "smoothness",
@@ -87,7 +95,12 @@ pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
                                 min: "0.0",
                                 max: "0.75",
                                 step: "0.05",
-                                value: "{animation.smooth_factor}",
+                                value: "{smoothness.read()}",
+                                oninput: move |event| {
+                                    if let Ok(v) = event.value().parse::<f32>() {
+                                        smoothness.set(v);
+                                    }
+                                }
                             }
                         }
                         div {
@@ -118,6 +131,8 @@ pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
                 }
             }
         }
+    } else {
+        rsx! {}
     }
 }
 

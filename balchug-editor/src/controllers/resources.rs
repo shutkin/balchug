@@ -14,7 +14,7 @@ pub struct ResourcesController {
     api: Api,
     thumbs: Signal<Vec<String>>,
     engine: Rc<RefCell<Option<BalchugEngine>>>,
-    project_state: Rc<RefCell<ProjectState>>,
+    project_state: ProjectState,
     adding_image_id: Signal<Option<usize>>,
     text_edit_open: Signal<bool>,
     edit_sprite_signal: Signal<Option<usize>>,
@@ -32,7 +32,7 @@ impl ResourcesController {
     pub fn new(
         api: Api,
         engine: Rc<RefCell<Option<BalchugEngine>>>,
-        project_state: Rc<RefCell<ProjectState>>,
+        project_state: ProjectState,
         sprites_update_signal: Rc<Cell<bool>>,
         scenario_update_signal: Rc<Cell<bool>>,
     ) -> Self {
@@ -88,7 +88,7 @@ impl ResourcesController {
     }
 
     pub fn get_sprite_props(&self, sprite_id: usize) -> Option<(SpriteProperties, SpriteAnimation)> {
-        let props = self.project_state.borrow().sprite_properties.read().get(&sprite_id).cloned()?;
+        let props = self.project_state.sprite_properties.read().get(&sprite_id).cloned()?;
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(animation) = engine.get_sprites_animations(Some(sprite_id)).first().cloned() {
             Some((props, animation))
@@ -97,7 +97,7 @@ impl ResourcesController {
         }
     }
 
-    pub fn set_sprite_props(&self, sprite_id: usize, props: &SpriteProperties, animation: &SpriteAnimation) {
+    pub fn set_sprite_props(&mut self, sprite_id: usize, props: &SpriteProperties, animation: &SpriteAnimation) {
         if let Some(engine) = self.engine.borrow().as_ref() {
             let mut animations = engine.get_sprites_animations(None);
             for sprite_animation in &mut animations {
@@ -108,18 +108,18 @@ impl ResourcesController {
             engine.set_scenario(animations);
             self.scenario_update_signal.set(true);
         }
-        self.project_state.borrow_mut().sprite_properties.insert(sprite_id, props.clone());
+        self.project_state.sprite_properties.insert(sprite_id, props.clone());
         self.sprites_update_signal.set(true);
     }
 
-    pub fn add_new_sprite_animation(&self, template: SpriteAnimation, props: SpriteProperties) {
+    pub fn add_new_sprite_animation(&mut self, template: SpriteAnimation, props: SpriteProperties) {
         if let Some(engine) = self.engine.borrow().as_ref() {
             let proportion = SpriteEditController::sprite_proportion(engine, &template);
 
             let mut sprites = engine.get_sprites_animations(None);
             let sprite_id = sprites.len();
             let cur_offset = engine.get_offset();
-            let aspect_ratio = *self.project_state.borrow().aspect_ratio.read();
+            let aspect_ratio = *self.project_state.aspect_ratio.read();
             let animation = SpriteAnimation {
                 sprite_id,
                 data: template.data,
@@ -128,8 +128,8 @@ impl ResourcesController {
             };
             sprites.push(animation);
             engine.set_scenario(sprites);
-            self.project_state.borrow_mut().add_sprite_properties(sprite_id, props);
-            self.project_state.borrow_mut().select_sprite(sprite_id);
+            self.project_state.add_sprite_properties(sprite_id, props);
+            self.project_state.select_sprite(sprite_id);
             self.sprites_update_signal.set(true);
         }
     }
@@ -165,10 +165,10 @@ impl ResourcesController {
     }
     
     pub fn get_cur_tab(&self) -> usize {
-        *self.project_state.borrow().cur_tab.read()
+        *self.project_state.cur_tab.read()
     }
     
-    pub fn set_cur_tab(&self, tab: usize) {
-        self.project_state.borrow_mut().cur_tab.set(tab);
+    pub fn set_cur_tab(&mut self, tab: usize) {
+        self.project_state.cur_tab.set(tab);
     }
 }

@@ -139,7 +139,7 @@ pub fn run() -> Result<(), JsValue> {
 
     let debug_div = document.get_element_by_id("debug_div");
 
-    let settings = Settings {background_color: [0.0, 0.0, 0.0]};
+    let settings = Settings {background_color: [{settings.background_color}]};
     let engine = balchug_engine::start_engine(window.clone(), canvas, settings);
     let atlas = create_atlas::create_atlas();
     engine.set_atlas(&format!("assets/atlas-{atlas_hash}.webp"), atlas);
@@ -179,9 +179,9 @@ pub const INDEX_HTML: &str = r#"
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=0"/>
     <link data-trunk rel="copy-dir" href="./assets"/>
-    <title>Balchug demo</title>
+    <title>{settings.name}</title>
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; overflow: hidden; background-color: rgb({settings.background_color}); }
         canvas { display: block;  }
     </style>
 </head>

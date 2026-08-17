@@ -5,6 +5,7 @@ use dioxus::prelude::*;
 use balchug_common::api::OpenProjectResponse;
 use balchug_common::scenario::Scenario;
 use balchug_engine::BalchugEngine;
+use balchug_engine::settings::Settings;
 use crate::components::workspace::Workspace;
 use crate::controllers::api::Api;
 use crate::controllers::project_controller::ProjectController;
@@ -46,13 +47,13 @@ impl UpdatesHandler<Scenario> for ScenarioUpdateHandler {
 }
 
 struct SpritesUpdateHandler {
-    project_state: Rc<RefCell<ProjectState>>,
+    project_state: ProjectState,
     api: Api,
 }
 
 impl UpdatesHandler<HashMap<usize, SpriteProperties>> for SpritesUpdateHandler {
     fn collect(&self) -> Option<HashMap<usize, SpriteProperties>> {
-        Some(self.project_state.borrow().sprite_properties.read().clone())
+        Some(self.project_state.sprite_properties.read().clone())
     }
 
     fn send(&self, value: HashMap<usize, SpriteProperties>) -> PinnedFuture<'_> {
@@ -86,7 +87,7 @@ fn App() -> Element {
     });
 
     let engine = Rc::new(RefCell::new(Option::<BalchugEngine>::None));
-    let project_state = Rc::new(RefCell::new(ProjectState::new()));
+    let project_state = ProjectState::new();
 
     let scenario_update_sender = UpdatesSender::new(
         ScenarioUpdateHandler {
@@ -131,12 +132,14 @@ fn App() -> Element {
 
     // open existing project
     let mut resources_clone = resources_controller.clone();
-    let project_state_clone = project_state.clone();
+    let mut project_state_clone = project_state.clone();
     let engine_clone = engine.clone();
     use_effect(move || {
         if let Some(resp) = open_project_response.read().as_ref() {
             info!("{resp:?}");
             resources_clone.update_image_resources(resp.images_thumbs.clone(), resp.atlas.clone());
+
+            project_state_clone.properties.set(resp.project_properties.clone());
 
             let mut sprite_props_map = HashMap::new();
             for (&sprite_id, props) in &resp.sprites_properties {
@@ -145,17 +148,23 @@ fn App() -> Element {
                     parallax_factor: props.parallax_factor,
                 });
             }
-
-            project_state_clone.borrow_mut().sprite_properties.replace(sprite_props_map);
+            project_state_clone.sprite_properties.replace(sprite_props_map);
 
             if let Some(engine) = engine_clone.borrow().as_ref() {
                 let sprites = resp.scenario.sprites.clone();
                 engine.set_scenario(sprites);
+                engine.update_settings(Settings {
+                    background_color: resp.project_properties.background_color,
+                });
             }
         }
     });
     
-    let project_controller = ProjectController::new(api.clone());
+    let project_controller = ProjectController::new(
+        api.clone(),
+        project_state.clone(),
+        engine.clone(),
+    );
 
     rsx! {
         Title { "Balchug Editor" }

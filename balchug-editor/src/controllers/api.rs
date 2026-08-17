@@ -7,7 +7,7 @@ use reqwest::Client;
 use reqwest::header::CONTENT_TYPE;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Blob, HtmlAnchorElement, Url};
-use balchug_common::api::{AddImageResponse, OpenProjectResponse, ProjectSpriteProperties, StartProjectResponse, UpdateScenarioRq, UpdateSpritesPropsRq};
+use balchug_common::api::{AddImageResponse, OpenProjectResponse, ProjectProperties, ProjectSpriteProperties, StartProjectResponse, UpdateProjectPropertiesRq, UpdateScenarioRq, UpdateSpritesPropsRq};
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
 use crate::states::project_state::SpriteProperties;
@@ -77,6 +77,21 @@ impl Api {
             }
         }
         None
+    }
+    
+    pub async fn update_project_properties(&self, properties: ProjectProperties) {
+        let url = format!("{SERVER_URL}/{}/props", self.project_id.borrow());
+        let data = UpdateProjectPropertiesRq {
+            properties,
+        };
+        match self.http_client.post(url).json(&data).send().await {
+            Ok(_) => {
+                info!("Project properties updated");
+            }
+            Err(err) => {
+                Self::handle_reqwest_error("Failed to update project properties", err);
+            }
+        }
     }
 
     pub async fn update_sprites_props(&self, props: HashMap<usize, SpriteProperties>) {

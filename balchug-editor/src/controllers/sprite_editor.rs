@@ -55,7 +55,7 @@ pub struct SpriteEditController {
     state_memo: Memo<Option<SpriteEditorState>>,
     preview_offset_listener: PreviewOffsetListener,
     canvas_rect: Rc<Cell<F32Rect>>,
-    project_state: Rc<RefCell<ProjectState>>,
+    project_state: ProjectState,
     scenario_update: Rc<Cell<bool>>,
 }
 
@@ -68,14 +68,14 @@ impl PartialEq for SpriteEditController {
 impl SpriteEditController {
     pub fn new(
         engine: Rc<RefCell<Option<BalchugEngine>>>,
-        project_state: Rc<RefCell<ProjectState>>,
+        project_state: ProjectState,
         scenario_update: Rc<Cell<bool>>,
     ) -> Self {
         let state = Signal::new(Option::<SpriteEditorState>::None);
         let state_memo = use_memo(move || state.read().cloned());
         let ps0 = project_state.clone();
-        let ps1 = project_state.clone();
-        let selected_sprite = use_memo(move || *ps0.borrow().selected_sprite.read());
+        let mut ps1 = project_state.clone();
+        let selected_sprite = use_memo(move || *ps0.selected_sprite.read());
 
         let controller = Self {
             state,
@@ -90,7 +90,7 @@ impl SpriteEditController {
         use_effect(move || {
             if let Some(sprite_id) = *selected_sprite.read() {
                 c0.set_timeline_sprite(sprite_id);
-                ps1.borrow_mut().unselect_sprite();
+                ps1.unselect_sprite();
             }
         });
 
@@ -103,11 +103,11 @@ impl SpriteEditController {
         self.engine.replace(Some(balchug_engine));
     }
 
-    pub fn resize(&self) {
+    pub fn resize(&mut self) {
         if let Some(engine) = self.engine.borrow().as_ref() {
             let canvas_rect = engine.resize();
             self.canvas_rect.replace(canvas_rect);
-            self.project_state.borrow_mut().aspect_ratio.set(canvas_rect.width / canvas_rect.height);
+            self.project_state.aspect_ratio.set(canvas_rect.width / canvas_rect.height);
         }
     }
 
@@ -138,7 +138,7 @@ impl SpriteEditController {
     pub fn get_sprite_titles(&self) -> Vec<String> {
         let sprites = self.get_sprites_states();
         sprites.iter().map(|sprite| {
-            self.project_state.borrow().get_sprite_properties(sprite.sprite_id).title
+            self.project_state.get_sprite_properties(sprite.sprite_id).title
         }).collect()
     }
     
@@ -152,7 +152,7 @@ impl SpriteEditController {
             }
             sprites.retain(|sprite| sprite.sprite_id != sprite_id);
             engine.set_scenario(sprites);
-            self.project_state.borrow_mut().sprite_properties.remove(&sprite_id);
+            self.project_state.sprite_properties.remove(&sprite_id);
         }
     }
     
@@ -255,7 +255,7 @@ impl SpriteEditController {
         sprite_id: usize,
         states_indices: Vec<usize>
     ) -> SpriteEditorState {
-        let parallax_factor = self.project_state.borrow().get_sprite_properties(sprite_id).parallax_factor;
+        let parallax_factor = self.project_state.get_sprite_properties(sprite_id).parallax_factor;
         let rect = Self::scale_rect(engine, sprite_animation, sprite_state, self.canvas_rect.get());
         SpriteEditorState {
             timeline_points: TimeLinePoints { sprite_index: sprite_id, states_indices},

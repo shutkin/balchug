@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use dioxus::prelude::*;
+use balchug_common::api::ProjectProperties;
 
 #[derive(Clone, PartialEq)]
 pub struct SpriteProperties {
@@ -18,6 +19,7 @@ impl Default for SpriteProperties {
 
 #[derive(Clone)]
 pub struct ProjectState {
+    pub properties: Store<ProjectProperties>,
     pub aspect_ratio: Store<f32>,
     pub sprite_properties: Store<HashMap<usize, SpriteProperties>>,
     pub cur_tab: Signal<usize>,
@@ -27,6 +29,7 @@ pub struct ProjectState {
 impl ProjectState {
     pub fn new() -> Self {
         Self {
+            properties: Store::new(ProjectProperties::default()),
             aspect_ratio: Store::new(9.0 / 16.0),
             sprite_properties: Store::new(HashMap::new()),
             cur_tab: Signal::new(1),
