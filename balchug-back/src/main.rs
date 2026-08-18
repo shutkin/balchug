@@ -2,18 +2,23 @@ mod atlas;
 mod model;
 mod server;
 pub mod codegen;
+mod font;
 
 use crate::server::Server;
 use actix_cors::Cors;
-use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
+use actix_web::error::{ErrorNotFound, ErrorInternalServerError};
 use actix_web::web::PayloadConfig;
 use actix_web::{get, http, post, web, App, HttpResponse, HttpServer, Responder};
-use actix_web::http::header;
-use actix_web::http::header::{DispositionParam, DispositionType};
+use actix_web::http::header::{ContentDisposition, DispositionParam, DispositionType};
 use balchug_common::api::{AddImageResponse, OpenProjectResponse, StartProjectResponse, UpdateProjectPropertiesRq, UpdateScenarioRq, UpdateSpritesPropsRq};
 use log::{error, info};
 
 pub type CommonError = Box<dyn std::error::Error + Send + Sync>;
+
+fn internal_err(endpoint: &str, err: CommonError) -> actix_web::Error {
+    error!("Error on {endpoint}: {err:?}");
+    ErrorInternalServerError(err)
+}
 
 #[get("/")]
 async fn root() -> impl Responder {
@@ -24,7 +29,7 @@ async fn root() -> impl Responder {
 async fn start(
     server: web::Data<Server>,
 ) -> Result<web::Json<StartProjectResponse>, actix_web::Error> {
-    let project = server.create_project().map_err(ErrorInternalServerError)?;
+    let project = server.create_project().map_err(|err| internal_err("start", err))?;
     info!("New project {}", project.id);
     Ok(web::Json(StartProjectResponse {
         project_id: project.id,
@@ -36,7 +41,7 @@ async fn assets(path: web::Path<(String, String)>) -> Result<Vec<u8>, actix_web:
     let (id, path) = path.into_inner();
     info!("Project {} get asset '{}'", id, path);
     let path = format!("./store/{}/{}", id, path.replace("_", "/"));
-    let content = tokio::fs::read(path).await.map_err(ErrorInternalServerError)?;
+    let content = tokio::fs::read(path).await.map_err(|err| internal_err("assets", err.into()))?;
     Ok(content)
 }
 
@@ -48,7 +53,7 @@ async fn update_project_props(path: web::Path<String>, server: web::Data<Server>
         .get_project(&id)
         .ok_or(ErrorNotFound("Project not found"))?;
     info!("Project {} properties update", id);
-    server.update_project_props(project, rq.properties.clone()).map_err(ErrorInternalServerError)?;
+    server.update_project_props(project, rq.properties.clone()).map_err(|err| internal_err("props", err))?;
     Ok(String::from("OK"))
 }
 
@@ -64,10 +69,10 @@ async fn upload_image(
         .get_project(&id)
         .ok_or(ErrorNotFound("Project not found"))?;
     info!("Project {} upload {} bytes with type {}", id, body.len(), content_type.0.0);
-    let img_type = content_type.0.0.subtype().as_str();
-    let (thumbs, atlas) = server
-        .add_image(project, body.as_ref(), img_type)
-        .map_err(ErrorInternalServerError)?;
+    let img_type = content_type.0.0.subtype().as_str().to_string();
+    let task = tokio::task::spawn_blocking(move || server.add_image(project, body.as_ref(), &img_type));
+    let (thumbs, atlas) = task.await.map_err(|err| internal_err("image", err.into()))?
+        .map_err(|err| internal_err("start", err))?;
     Ok(web::Json(AddImageResponse { thumbs, atlas }))
 }
 
@@ -79,7 +84,7 @@ async fn update_sprites_props(path: web::Path<String>, server: web::Data<Server>
         .get_project(&id)
         .ok_or(ErrorNotFound("Project not found"))?;
     info!("Project {} scenario update", id);
-    server.update_sprite_props(project, rq.sprites_properties.clone()).map_err(ErrorInternalServerError)?;
+    server.update_sprite_props(project, rq.sprites_properties.clone()).map_err(|err| internal_err("sprites", err))?;
     Ok(String::from("OK"))
 }
 
@@ -91,7 +96,7 @@ async fn update_scenario(path: web::Path<String>, server: web::Data<Server>, rq:
         .get_project(&id)
         .ok_or(ErrorNotFound("Project not found"))?;
     info!("Project {} scenario update", id);
-    server.update_scenario(project, rq.scenario.clone()).map_err(ErrorInternalServerError)?;
+    server.update_scenario(project, rq.scenario.clone()).map_err(|err| internal_err("scenario", err))?;
     Ok(String::from("OK"))
 }
 
@@ -119,8 +124,12 @@ async fn export_project(path: web::Path<String>, server: web::Data<Server>)
     let project = server
         .get_project(&id)
         .ok_or(ErrorNotFound("Project not found"))?;
-    let result = server.compile(project).map_err(ErrorInternalServerError)?;
-    let content_disposition = header::ContentDisposition {
+    let project_id = project.id.clone();
+    let task = tokio::task::spawn_blocking(move || server.compile(project));
+    let task_result = task.await.map_err(|err| internal_err("export", err.into()))?;
+    Server::compile_clean(&project_id).map_err(|err| internal_err("export", err))?;
+    let result = task_result.map_err(|e| internal_err("export", e.into()))?;
+    let content_disposition = ContentDisposition {
         disposition: DispositionType::Attachment,
         parameters: vec![DispositionParam::Filename(format!("dist-{}.zip", id))],
     };
@@ -146,7 +155,7 @@ async fn main() -> std::io::Result<()> {
         let cors = Cors::permissive();
         App::new()
             .wrap(cors)
-            .app_data(PayloadConfig::new(2 * 1024 * 1024))
+            .app_data(PayloadConfig::new(5 * 1024 * 1024))
             .app_data(web::Data::new(server.clone()))
             .service(root)
             .service(start)

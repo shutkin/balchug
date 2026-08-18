@@ -7,19 +7,19 @@ use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
 use rand::distr::{Alphanumeric, SampleString};
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::process::Command;
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex};
 use log::{error, info};
 use zip::CompressionMethod;
 use zip::write::SimpleFileOptions;
 use zip_extensions::zip_writer::zip_create_from_directory_with_options;
+use crate::font::subset_font;
 
 const STORE_DIR: &str = "./store";
 
 #[derive(Clone, Default)]
 pub struct Server {
-    projects: Arc<RwLock<HashMap<String, BalchugProject>>>,
+    projects: Arc<Mutex<HashMap<String, BalchugProject>>>,
 }
 
 impl Server {
@@ -31,11 +31,14 @@ impl Server {
     }
 
     fn save_project_json(project: &BalchugProject) {
+        let project_id = project.id.clone();
         match serde_json::to_string(project) {
             Ok(json) => {
-                if let Err(err) = std::fs::write(format!("{STORE_DIR}/{}/project.json", project.id), json) {
-                    error!("Failed to save project json: {err}");
-                }
+                tokio::spawn(async move {
+                    if let Err(err) = tokio::fs::write(format!("{STORE_DIR}/{}/project.json", project_id), json).await {
+                        error!("Failed to save project json: {err}");
+                    }
+                });
             },
             Err(err) => {
                 error!("Failed to serialize project json: {err}");
@@ -85,12 +88,12 @@ impl Server {
     }
 
     pub fn get_project(&self, id: &str) -> Option<BalchugProject> {
-        self.projects.read().unwrap().get(id).cloned()
+        self.projects.lock().ok()?.get(id).cloned()
     }
     
     fn put_project(&self, project: BalchugProject) -> Result<(), CommonError> {
-        Server::save_project_json(&project);
-        let mut lock = self.projects.write().map_err(|_| "Failed to lock projects map")?;
+        Self::save_project_json(&project.clone());
+        let mut lock = self.projects.lock().map_err(|_| "Failed to lock projects map")?;
         lock.insert(project.id.clone(), project);
         Ok(())
     }
@@ -107,11 +110,11 @@ impl Server {
         let image_index = project.thumbs.len();
         thumb.save(format!("{STORE_DIR}/{}/thumb/{image_index:05}.jpg", project.id))?;
         std::fs::write(format!("{STORE_DIR}/{}/image/{image_index:05}.{img_type}", project.id), image)?;
-        let atlas = create_atlas(
+        let (atlas, webp) = create_atlas(
             &format!("{STORE_DIR}/{}/image", project.id),
-            &format!("{STORE_DIR}/{}/atlas.webp", project.id),
             &HashMap::new(),
         )?;
+        std::fs::write(format!("{STORE_DIR}/{}/atlas.webp", project.id), webp)?;
 
         project.images_atlas = atlas.clone();
         project.thumbs.push(format!("thumb_{image_index:05}.jpg"));
@@ -137,13 +140,16 @@ impl Server {
         std::fs::create_dir_all(format!("/tmp/balchug/{}/src", project.id))?;
         std::fs::create_dir_all(format!("/tmp/balchug/{}/assets", project.id))?;
 
-        let original_atlas_hash = atlas_hash(&project.images_atlas);
         let scales = optimize_atlas_items(&project.images_atlas, &project.scenario, 1080);
-        let atlas_optimized = create_atlas(
+        let (atlas_optimized, webp) = create_atlas(
             &format!("{STORE_DIR}/{}/image", project.id),
-            &format!("/tmp/balchug/{}/assets/atlas-{}.webp", project.id, original_atlas_hash),
             &scales,
         )?;
+        let atlas_hash = atlas_hash(&atlas_optimized);
+        std::fs::write(format!("/tmp/balchug/{}/assets/atlas-{}.webp", project.id, atlas_hash), webp)?;
+
+        let (font, font_hash) = subset_font("./font.otf", &project.scenario)?;
+        std::fs::write(format!("/tmp/balchug/{}/assets/font-{}.otf", project.id, font_hash), font)?;
 
         let atlas_code = atlas_to_code(&atlas_optimized)?;
         let scenario_code = animations_to_code(&project.scenario.sprites)?;
@@ -152,15 +158,15 @@ impl Server {
         std::fs::write(format!("/tmp/balchug/{}/Trunk.toml", project.id), TRUNK_TOML)?;
         std::fs::write(format!("/tmp/balchug/{}/src/lib.rs", project.id),
                        LIB_CODE
-                           .replace("{atlas_hash}", &original_atlas_hash)
-                           .replace("{settings.background_color}", &color))?;
+                           .replace("{atlas_hash}", &atlas_hash)
+                           .replace("{settings.background_color}", &color)
+                           .replace("{font.hash}", &font_hash))?;
         std::fs::write(format!("/tmp/balchug/{}/src/create_atlas.rs", project.id), atlas_code)?;
         std::fs::write(format!("/tmp/balchug/{}/src/create_scenario.rs", project.id), scenario_code)?;
         std::fs::write(format!("/tmp/balchug/{}/index.html", project.id),
                        INDEX_HTML
                            .replace("{settings.name}", &project.props.name)
                            .replace("{settings.background_color}", &color))?;
-        std::fs::copy("./font.otf", format!("/tmp/balchug/{}/assets/font.otf", project.id))?;
 
         let output = Command::new("trunk")
             .arg("build")
@@ -169,18 +175,24 @@ impl Server {
             .output()?;
         if output.status.success() {
             let stdout = String::from_utf8_lossy(&output.stdout);
-            println!("Output:\n{}", stdout);
+            info!("Build output:\n{}", stdout);
 
-            let dist_dir = PathBuf::from(format!("/tmp/balchug/{}/dist", project.id));
-            let zip_path = PathBuf::from(format!("{STORE_DIR}/{}/dist.zip", project.id));
-            let options = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
-            zip_create_from_directory_with_options(&zip_path, &dist_dir, |_| options)?;
-            let result = std::fs::read(format!("{STORE_DIR}/{}/dist.zip", project.id))?;
+            let dist_dir = format!("/tmp/balchug/{}/dist", project.id);
+            let zip_path = format!("/tmp/balchug/{}/dist.zip", project.id);
+            let options = SimpleFileOptions::default()
+                .compression_method(CompressionMethod::Zstd)
+                .compression_level(Some(22));
+            zip_create_from_directory_with_options(&zip_path.clone().into(), &dist_dir.into(), |_| options)?;
+            let result = std::fs::read(zip_path)?;
             Ok(result)
         } else {
             let stderr = String::from_utf8_lossy(&output.stdout);
-            eprintln!("Error:\n{}", stderr);
-            Err("Failed to build project".into())
+            Err(stderr.into())
         }
+    }
+
+    pub fn compile_clean(project_id: &str) -> Result<(), CommonError> {
+        std::fs::remove_dir_all(format!("/tmp/balchug/{}", project_id))?;
+        Ok(())
     }
 }

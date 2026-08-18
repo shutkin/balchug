@@ -19,7 +19,7 @@ pub fn create_empty_atlas(atlas_path: &str) -> Result<(), CommonError> {
     Ok(())
 }
 
-pub fn create_atlas(images_dir: &str, atlas_path: &str, scales: &HashMap<usize, f32>) -> Result<Atlas, CommonError> {
+pub fn create_atlas(images_dir: &str, scales: &HashMap<usize, f32>) -> Result<(Atlas, Vec<u8>), CommonError> {
     let dir = std::fs::read_dir(images_dir)?;
     
     let images = read_images(dir, scales);
@@ -32,8 +32,7 @@ pub fn create_atlas(images_dir: &str, atlas_path: &str, scales: &HashMap<usize, 
     let encoder = webp::Encoder::from_rgba(atlas_image.as_raw(), atlas.width, atlas.height);
     let webp = encoder.encode_simple(false, 90.0)
         .map_err(|err| format!("failed to encode atlas.webp: {err:?}"))?;
-    std::fs::write(atlas_path, webp.to_vec())?;
-    Ok(atlas)
+    Ok((atlas, webp.to_vec()))
 }
 
 fn read_images(dir: ReadDir, scales: &HashMap<usize, f32>) -> Vec<DynamicImage> {

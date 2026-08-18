@@ -137,13 +137,11 @@ pub fn run() -> Result<(), JsValue> {
         .ok_or(JsValue::from_str("Canvas element not found"))?
         .dyn_into::<HtmlCanvasElement>()?;
 
-    let debug_div = document.get_element_by_id("debug_div");
-
     let settings = Settings {background_color: [{settings.background_color}]};
     let engine = balchug_engine::start_engine(window.clone(), canvas, settings);
     let atlas = create_atlas::create_atlas();
-    engine.set_atlas(&format!("assets/atlas-{atlas_hash}.webp"), atlas);
-    engine.set_font("assets/font.otf");
+    engine.set_atlas("assets/atlas-{atlas_hash}.webp", atlas);
+    engine.set_font("assets/font-{font.hash}.otf");
     engine.set_scenario(create_scenario::create_animations());
 
     let on_resize = {
@@ -154,19 +152,6 @@ pub fn run() -> Result<(), JsValue> {
     };
     window.add_event_listener_with_callback("resize", on_resize.as_ref().unchecked_ref())?;
     on_resize.forget();
-
-    let on_interval = {
-        let engine = engine.clone();
-        let debug_div = debug_div.clone();
-        wasm_bindgen::closure::Closure::wrap(Box::new(move |_| {
-            if let Some(debug_div) = debug_div.as_ref() {
-                let fps = engine.get_fps();
-                debug_div.set_inner_html(&format!("{fps}"));
-            }
-        }) as Box<dyn FnMut(Event)>)
-    };
-    window.set_interval_with_callback_and_timeout_and_arguments_0(on_interval.as_ref().unchecked_ref(), 500)?;
-    on_interval.forget();
 
     let _rect = engine.resize();
     Ok(())
@@ -189,7 +174,6 @@ pub const INDEX_HTML: &str = r#"
 <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; overflow: hidden;">
     <canvas id="canvas" style="display: block; width: 100%; height: 100%"></canvas>
 </div>
-<div id="debug_div" style="position: absolute; top: 0; left: 0; padding: 10px; font-family: monospace; color: gray"></div>
 </body>
 </html>
 "#;

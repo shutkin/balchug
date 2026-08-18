@@ -16,11 +16,8 @@ pub fn scenario_max_offset(scenario: &Scenario) -> f32 {
 pub fn scenario_text_size(scenario: &Scenario, canvas_size: f32) -> f32 {
     let mut sizes = Vec::new();
     for sprite in &scenario.sprites {
-        match &sprite.data {
-            SpriteData::Text(data) => {
-                sizes.push(data.size as f32 * TEXT_SIZE_FACTOR * canvas_size);
-            }
-            _ => {}
+        if let SpriteData::Text(data) = &sprite.data {
+            sizes.push(data.size as f32 * TEXT_SIZE_FACTOR * canvas_size);
         }
     }
     if sizes.is_empty() {
@@ -39,12 +36,9 @@ pub fn scenario_text_size(scenario: &Scenario, canvas_size: f32) -> f32 {
 pub fn scenario_letters(scenario: &Scenario) -> String {
     let mut letters = HashSet::new();
     for sprite in &scenario.sprites {
-        match &sprite.data {
-            SpriteData::Text(data) => {
-                data.text.chars().for_each(|letter| { letters.insert(letter); });
-            }
-            _ => {}
+        if let SpriteData::Text(data) = &sprite.data {
+            data.text.chars().for_each(|letter| { letters.insert(letter); });
         }
     }
-    String::from_iter(letters.into_iter())
+    String::from_iter(letters)
 }
