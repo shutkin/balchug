@@ -124,7 +124,9 @@ impl ResourcesController {
                 sprite_id,
                 data: template.data,
                 smooth_factor: template.smooth_factor,
-                states: Self::create_default_animation(cur_offset, aspect_ratio, proportion, props.parallax_factor),
+                states: Self::create_default_animation(
+                    cur_offset, aspect_ratio, proportion,
+                    props.parallax_factor, self.project_state.properties.read().default_text_color),
             };
             sprites.push(animation);
             engine.set_scenario(sprites);
@@ -134,7 +136,13 @@ impl ResourcesController {
         }
     }
 
-    fn create_default_animation(cur_offset: f32, aspect_ratio: f32, item_proportion: f32, parallax_factor: f32) -> Vec<SpriteState> {
+    fn create_default_animation(
+        cur_offset: f32,
+        aspect_ratio: f32,
+        item_proportion: f32,
+        parallax_factor: f32,
+        color: [u8; 3]
+    ) -> Vec<SpriteState> {
         let start_y = 1.0 / aspect_ratio;
         let end_y = -1.0 / item_proportion;
         let start_offset = cur_offset - (start_y - end_y) * 0.5 * parallax_factor;
@@ -149,7 +157,7 @@ impl ResourcesController {
             y: 1.0 / aspect_ratio - start_y,
             from_bottom: true,
             width: 1.0,
-            color: [1.0, 1.0, 1.0, 1.0],
+            color: [color[0], color[1], color[2], 255],
             easing: Easing::default(),
         };
         let state_one = SpriteState {
@@ -158,7 +166,7 @@ impl ResourcesController {
             y: end_y,
             from_bottom: false,
             width: 1.0,
-            color: [1.0, 1.0, 1.0, 1.0],
+            color: [color[0], color[1], color[2], 255],
             easing: Easing::default(),
         };
         vec![state_zero, state_one]

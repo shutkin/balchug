@@ -254,7 +254,7 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
 
     for sprite_animation in &scenario.sprites {
         if let Some(cur_state) = sprite_util.interpolate_state(sprite_animation, scaled_offset)
-            && cur_state.color[3] > 0.001 {
+            && cur_state.color[3] > 0 {
             match &sprite_animation.data {
                 SpriteData::Image(image_data) => {
                     sprites.push(Sprite {

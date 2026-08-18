@@ -167,8 +167,8 @@ fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> 
                     input {
                         r#type: "number",
                         name: "alpha",
-                        value: "{round(se.sprite_state.color[3])}",
-                        step: "0.001",
+                        value: "{se.sprite_state.color[3]}",
+                        step: "1",
                         oninput: move |e| {
                             c5.handle_input_change("alpha", &e.value());
                         },

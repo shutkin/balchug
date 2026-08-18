@@ -11,7 +11,7 @@ use crate::controllers::api::Api;
 use crate::controllers::project_controller::ProjectController;
 use crate::controllers::resources::ResourcesController;
 use crate::controllers::sprite_editor::SpriteEditController;
-use crate::controllers::storage::LocalStorage;
+use crate::controllers::storage::{LocalStorage, KEY_PROJECT_ID};
 use crate::controllers::updates_sender::{PinnedFuture, UpdatesHandler, UpdatesSender};
 use crate::states::project_state::{ProjectState, SpriteProperties};
 
@@ -63,7 +63,7 @@ impl UpdatesHandler<HashMap<usize, SpriteProperties>> for SpritesUpdateHandler {
 
 #[component]
 fn App() -> Element {
-    let api = Api::new(LocalStorage::get("project_id").unwrap_or_default());
+    let api = Api::new(LocalStorage::get(KEY_PROJECT_ID).unwrap_or_default());
     let mut open_project_response = use_signal(|| Option::<OpenProjectResponse>::None);
 
     let api_clone = api.clone();
@@ -77,11 +77,11 @@ fn App() -> Element {
             } else {
                 // create new project
                 if let Some(id) = api.start().await {
-                    LocalStorage::set("project_id", &id);
+                    LocalStorage::set(KEY_PROJECT_ID, &id);
                     return true;
                 }
             }
-            LocalStorage::remove("project_id");
+            LocalStorage::remove(KEY_PROJECT_ID);
             false
         }
     });

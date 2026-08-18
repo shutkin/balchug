@@ -45,10 +45,10 @@ impl SpriteUtil {
             from_bottom: false,
             width: linear(s0.width, s1.width, factor),
             color: [
-                linear(s0.color[0], s1.color[0], factor),
-                linear(s0.color[1], s1.color[1], factor),
-                linear(s0.color[2], s1.color[2], factor),
-                linear(s0.color[3], s1.color[3], factor),
+                linear(s0.color[0] as f32, s1.color[0] as f32, factor).round().min(255.0) as u8,
+                linear(s0.color[1] as f32, s1.color[1] as f32, factor).round().min(255.0) as u8,
+                linear(s0.color[2] as f32, s1.color[2] as f32, factor).round().min(255.0) as u8,
+                linear(s0.color[3] as f32, s1.color[3] as f32, factor).round().min(255.0) as u8,
             ],
             easing: s1.easing,
         }

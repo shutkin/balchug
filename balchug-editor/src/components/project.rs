@@ -1,13 +1,13 @@
 use dioxus::prelude::*;
 use web_sys::window;
 use crate::controllers::project_controller::ProjectController;
-use crate::controllers::storage::LocalStorage;
-use crate::states::project_state::ProjectState;
+use crate::controllers::storage::{LocalStorage, KEY_PROJECT_ID};
 
 #[component]
 pub fn ProjectControl(controller: ProjectController) -> Element {
     let mut c0 = controller.clone();
     let mut c1 = controller.clone();
+    let mut c2 = controller.clone();
 
     rsx! {
         section {
@@ -27,7 +27,7 @@ pub fn ProjectControl(controller: ProjectController) -> Element {
                     id: "project_btn_new",
                     class: "btn btn-danger",
                     onclick: move |_| {
-                        LocalStorage::remove("project_id");
+                        LocalStorage::remove(KEY_PROJECT_ID);
                         window().map(|window| window.location().reload());
                     },
                     "New Project"
@@ -75,6 +75,18 @@ pub fn ProjectControl(controller: ProjectController) -> Element {
                             let color = event.value();
                             info!("Background color: {color}");
                             c1.set_background_color(color);
+                        }
+                    }
+                }
+                label {
+                    "Text Color"
+                    input {
+                        r#type: "color",
+                        value: "{c2.get_text_color()}",
+                        onchange: move |event| {
+                            let color = event.value();
+                            info!("Text color: {color}");
+                            c2.set_text_color(color);
                         }
                     }
                 }

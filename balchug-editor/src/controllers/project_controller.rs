@@ -40,6 +40,11 @@ impl ProjectController {
         let c = &self.state.properties.read().background_color;
         format!("rgb({},{},{})", c[0], c[1], c[2])
     }
+    
+    pub fn get_text_color(&self) -> String {
+        let c = &self.state.properties.read().default_text_color;
+        format!("rgb({},{},{})", c[0], c[1], c[2])
+    }
 
     fn parse_hex_color(hex: &str) -> Result<[u8; 3], std::num::ParseIntError> {
         let hex = hex.trim_start_matches('#');
@@ -59,6 +64,15 @@ impl ProjectController {
 
             let mut properties = self.state.properties.read().clone();
             properties.background_color = color;
+            self.state.properties.set(properties.clone());
+            self.update_properties(properties);
+        }
+    }
+
+    pub fn set_text_color(&mut self, color: String) {
+        if let Ok(color) = Self::parse_hex_color(&color) {
+            let mut properties = self.state.properties.read().clone();
+            properties.default_text_color = color;
             self.state.properties.set(properties.clone());
             self.update_properties(properties);
         }

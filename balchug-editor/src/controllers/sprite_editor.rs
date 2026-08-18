@@ -440,6 +440,7 @@ impl SpriteEditController {
             let state = states[index];
             if (new_state.offset - state.offset).abs() < STATE_OFFSET_LAG || points.states_indices.len() < 2 {
                 states[index] = new_state;
+                info!("New state color: {:?}", states[index].color);
             } else {
                 let dy = (new_state.offset - state.offset) / parallax_factor;
                 let modified_state = SpriteState {
@@ -462,29 +463,23 @@ impl SpriteEditController {
     pub fn handle_input_change(&mut self, name: &str, value: &str) {
         if let Some(cur_state) = self.state_memo.read().cloned() {
             let mut new_sprite_state = cur_state.sprite_state;
-            let num = value.parse::<f32>().unwrap_or(f32::NAN);
-            if !num.is_nan() {
-                match name {
-                    "offset" => new_sprite_state.offset = num,
-                    "x" => new_sprite_state.x = num,
-                    "y" => new_sprite_state.y = num,
-                    "scale" => new_sprite_state.width = num,
-                    "alpha" => new_sprite_state.color[3] = num,
-                    _ => {}
-                }
-            } else {
-                match name {
-                    "easing" => new_sprite_state.easing = map_str_to_easing(value),
-                    "y_axis" => {
-                        let from_bottom = value == "Bottom";
-                        if new_sprite_state.from_bottom != from_bottom {
-                            let canvas_rect = self.canvas_rect.get();
-                            new_sprite_state.y = canvas_rect.height / canvas_rect.width - new_sprite_state.y;
-                            new_sprite_state.from_bottom = from_bottom;
-                        }
-                    },
-                    _ => {}
-                }
+            let num = value.parse::<f32>().unwrap_or_default();
+            match name {
+                "offset" => new_sprite_state.offset = num,
+                "x" => new_sprite_state.x = num,
+                "y" => new_sprite_state.y = num,
+                "scale" => new_sprite_state.width = num,
+                "easing" => new_sprite_state.easing = map_str_to_easing(value),
+                "y_axis" => {
+                    let from_bottom = value == "Bottom";
+                    if new_sprite_state.from_bottom != from_bottom {
+                        let canvas_rect = self.canvas_rect.get();
+                        new_sprite_state.y = canvas_rect.height / canvas_rect.width - new_sprite_state.y;
+                        new_sprite_state.from_bottom = from_bottom;
+                    }
+                },
+                "alpha" => new_sprite_state.color[3] = value.parse::<u8>().unwrap_or_default(),
+                _ => {}
             }
             if let Some(engine) = self.engine.borrow().as_ref()
                 && let Some(mut animation) = engine.get_sprites_animations(Some(cur_state.timeline_points.sprite_index)).first().cloned() {

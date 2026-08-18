@@ -1,6 +1,8 @@
 use dioxus::prelude::*;
 use web_sys::window;
 
+pub const KEY_PROJECT_ID: &str = "project_id";
+
 pub struct LocalStorage {}
 
 impl LocalStorage {

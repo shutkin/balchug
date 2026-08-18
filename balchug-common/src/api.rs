@@ -28,6 +28,7 @@ pub struct UpdateScenarioRq {
 pub struct ProjectProperties {
     pub name: String,
     pub background_color: [u8; 3],
+    pub default_text_color: [u8; 3],
 }
 
 impl Default for ProjectProperties {
@@ -35,6 +36,7 @@ impl Default for ProjectProperties {
         Self {
             name: "Balchug Project".to_string(),
             background_color: [0, 0, 0],
+            default_text_color: [255, 255, 255],
         }
     }
 }

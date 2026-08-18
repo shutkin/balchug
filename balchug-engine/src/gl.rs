@@ -180,7 +180,7 @@ impl GlRenderer {
                 self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.width, height);
 
                 let sprite_alpha_loc = self.gl.get_uniform_location(&self.program, "u_spriteAlpha");
-                self.gl.uniform1f(sprite_alpha_loc.as_ref(), sprite.state.color[3]);
+                self.gl.uniform1f(sprite_alpha_loc.as_ref(), sprite.state.color[3] as f32 / 255.0);
 
                 let tex_pos_loc = self.gl.get_uniform_location(&self.program, "u_texPos");
                 let tex_size_loc = self.gl.get_uniform_location(&self.program, "u_texSize");
@@ -205,7 +205,13 @@ impl GlRenderer {
                 self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.width, height);
 
                 let sprite_alpha_loc = self.gl.get_uniform_location(&self.txt_program, "u_spriteColor");
-                self.gl.uniform4f(sprite_alpha_loc.as_ref(), sprite.state.color[0], sprite.state.color[1], sprite.state.color[2], sprite.state.color[3]);
+                self.gl.uniform4f(
+                    sprite_alpha_loc.as_ref(),
+                    sprite.state.color[0] as f32 / 255.0,
+                    sprite.state.color[1] as f32 / 255.0,
+                    sprite.state.color[2] as f32 / 255.0,
+                    sprite.state.color[3] as f32 / 255.0,
+                );
 
                 let tex_pos_loc = self.gl.get_uniform_location(&self.txt_program, "u_texPos");
                 let tex_size_loc = self.gl.get_uniform_location(&self.txt_program, "u_texSize");
