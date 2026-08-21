@@ -1,7 +1,7 @@
 use dioxus::prelude::*;
 use balchug_common::sprite::{SpriteAnimation, SpriteData};
 use crate::controllers::resources::ResourcesController;
-use crate::states::project_state::SpriteProperties;
+use crate::states::project_state::SpriteGroupProperties;
 
 #[component]
 pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
@@ -136,7 +136,7 @@ pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
     }
 }
 
-fn parse_values(values: Vec<(String, FormValue)>, animation: &mut SpriteAnimation, props: &mut SpriteProperties) {
+fn parse_values(values: Vec<(String, FormValue)>, animation: &mut SpriteAnimation, props: &mut SpriteGroupProperties) {
     for (name, value) in values {
         let v = match value {
             FormValue::Text(txt) => txt,

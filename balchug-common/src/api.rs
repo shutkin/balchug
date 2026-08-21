@@ -42,14 +42,16 @@ impl Default for ProjectProperties {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ProjectSpriteProperties {
+pub struct ProjectSpriteGroupProperties {
+    pub main_sprite: usize,
+    pub sprites: Vec<usize>,
     pub title: String,
     pub parallax_factor: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpdateSpritesPropsRq {
-    pub sprites_properties: HashMap<usize, ProjectSpriteProperties>,
+    pub sprites_properties: HashMap<usize, ProjectSpriteGroupProperties>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -58,5 +60,5 @@ pub struct OpenProjectResponse {
     pub images_thumbs: Vec<String>,
     pub atlas: Atlas,
     pub scenario: Scenario,
-    pub sprites_properties: HashMap<usize, ProjectSpriteProperties>,
+    pub sprites_groups: HashMap<usize, ProjectSpriteGroupProperties>,
 }

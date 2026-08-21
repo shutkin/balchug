@@ -13,7 +13,7 @@ use crate::controllers::resources::ResourcesController;
 use crate::controllers::sprite_editor::SpriteEditController;
 use crate::controllers::storage::{LocalStorage, KEY_PROJECT_ID};
 use crate::controllers::updates_sender::{PinnedFuture, UpdatesHandler, UpdatesSender};
-use crate::states::project_state::{ProjectState, SpriteProperties};
+use crate::states::project_state::{ProjectState, SpriteGroupProperties};
 
 mod components;
 mod states;
@@ -51,12 +51,12 @@ struct SpritesUpdateHandler {
     api: Api,
 }
 
-impl UpdatesHandler<HashMap<usize, SpriteProperties>> for SpritesUpdateHandler {
-    fn collect(&self) -> Option<HashMap<usize, SpriteProperties>> {
-        Some(self.project_state.sprite_properties.read().clone())
+impl UpdatesHandler<HashMap<usize, SpriteGroupProperties>> for SpritesUpdateHandler {
+    fn collect(&self) -> Option<HashMap<usize, SpriteGroupProperties>> {
+        Some(self.project_state.sprite_group_properties.read().clone())
     }
 
-    fn send(&self, value: HashMap<usize, SpriteProperties>) -> PinnedFuture<'_> {
+    fn send(&self, value: HashMap<usize, SpriteGroupProperties>) -> PinnedFuture<'_> {
         Box::pin(self.api.update_sprites_props(value))
     }
 }
@@ -142,13 +142,16 @@ fn App() -> Element {
             project_state_clone.properties.set(resp.project_properties.clone());
 
             let mut sprite_props_map = HashMap::new();
-            for (&sprite_id, props) in &resp.sprites_properties {
-                sprite_props_map.insert(sprite_id, SpriteProperties {
+            for (&sprite_id, props) in &resp.sprites_groups {
+                sprite_props_map.insert(sprite_id, SpriteGroupProperties {
+                    main_sprite_id: props.main_sprite,
+                    sprites: props.sprites.clone(),
                     title: props.title.clone(),
                     parallax_factor: props.parallax_factor,
+                    relations: HashMap::new(),
                 });
             }
-            project_state_clone.sprite_properties.replace(sprite_props_map);
+            project_state_clone.sprite_group_properties.replace(sprite_props_map);
 
             if let Some(engine) = engine_clone.borrow().as_ref() {
                 let sprites = resp.scenario.sprites.clone();

@@ -2,7 +2,7 @@ use crate::CommonError;
 use crate::atlas::{atlas_hash, create_atlas, create_empty_atlas, optimize_atlas_items};
 use crate::codegen::{CARGO_TOML, INDEX_HTML, LIB_CODE, TRUNK_TOML, animations_to_code, atlas_to_code};
 use crate::model::BalchugProject;
-use balchug_common::api::{ProjectProperties, ProjectSpriteProperties};
+use balchug_common::api::{ProjectProperties, ProjectSpriteGroupProperties};
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
 use rand::distr::{Alphanumeric, SampleString};
@@ -130,7 +130,7 @@ impl Server {
         Ok(())
     }
 
-    pub fn update_sprite_props(&self, mut project: BalchugProject, props: HashMap<usize, ProjectSpriteProperties>) -> Result<(), CommonError> {
+    pub fn update_sprite_props(&self, mut project: BalchugProject, props: HashMap<usize, ProjectSpriteGroupProperties>) -> Result<(), CommonError> {
         project.sprite_properties = props;
         self.put_project(project)?;
         Ok(())

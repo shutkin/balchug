@@ -112,7 +112,7 @@ async fn get_project(path: web::Path<String>, server: web::Data<Server>)
         images_thumbs: project.thumbs,
         atlas: project.images_atlas,
         scenario: project.scenario,
-        sprites_properties: project.sprite_properties,
+        sprites_groups: project.sprite_properties,
     };
     Ok(web::Json(resp))
 }

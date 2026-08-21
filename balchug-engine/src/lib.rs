@@ -195,7 +195,7 @@ impl BalchugEngine {
         self.context.fps.borrow().get_fps()
     }
 
-    pub fn measure_text(&self, data: &SpriteTextData, scale: f32) -> f32 {
+    pub fn measure_text(&self, data: &SpriteTextData, scale: f32) -> (f32, f32) {
         measure_text_line(&data.text, data.size, scale, &self.context.font.borrow())
     }
 

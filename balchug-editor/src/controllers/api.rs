@@ -7,10 +7,10 @@ use reqwest::Client;
 use reqwest::header::CONTENT_TYPE;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Blob, HtmlAnchorElement, Url};
-use balchug_common::api::{AddImageResponse, OpenProjectResponse, ProjectProperties, ProjectSpriteProperties, StartProjectResponse, UpdateProjectPropertiesRq, UpdateScenarioRq, UpdateSpritesPropsRq};
+use balchug_common::api::{AddImageResponse, OpenProjectResponse, ProjectProperties, ProjectSpriteGroupProperties, StartProjectResponse, UpdateProjectPropertiesRq, UpdateScenarioRq, UpdateSpritesPropsRq};
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
-use crate::states::project_state::SpriteProperties;
+use crate::states::project_state::SpriteGroupProperties;
 
 const SERVER_URL: &str = "http://localhost:3000";
 
@@ -94,10 +94,12 @@ impl Api {
         }
     }
 
-    pub async fn update_sprites_props(&self, props: HashMap<usize, SpriteProperties>) {
+    pub async fn update_sprites_props(&self, props: HashMap<usize, SpriteGroupProperties>) {
         let mut sprites_properties = HashMap::new();
-        for (sprite_id, properties) in props {
-            sprites_properties.insert(sprite_id, ProjectSpriteProperties {
+        for (group_id, properties) in props {
+            sprites_properties.insert(group_id, ProjectSpriteGroupProperties {
+                main_sprite: properties.main_sprite_id,
+                sprites: properties.sprites.clone(),
                 title: properties.title,
                 parallax_factor: properties.parallax_factor,
             });

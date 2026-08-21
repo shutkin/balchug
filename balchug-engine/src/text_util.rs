@@ -47,7 +47,7 @@ impl TextUtil {
     }
 }
 
-pub fn measure_text_line(text: &str, size: u8, scale: f32, font: &FontData) -> f32 {
+pub fn measure_text_line(text: &str, size: u8, scale: f32, font: &FontData) -> (f32, f32) {
     let scale = scale * size as f32 * TEXT_SIZE_FACTOR / font.height;
     let mut cx = 0.0;
     for c in text.chars() {
@@ -62,5 +62,5 @@ pub fn measure_text_line(text: &str, size: u8, scale: f32, font: &FontData) -> f
             cx += glyph.h_advance * scale;
         }
     }
-    cx
+    (cx, (font.height + font.line_gap) * scale)
 }

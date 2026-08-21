@@ -6,8 +6,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use balchug_common::atlas::Atlas;
 use balchug_common::sprite::{SpriteAnimation, SpriteState, Easing};
+use crate::controllers::sprite_arrange::SpriteArrange;
 use crate::controllers::sprite_editor::SpriteEditController;
-use crate::states::project_state::{ProjectState, SpriteProperties};
+use crate::states::project_state::{ProjectState, SpriteGroupProperties};
 
 #[derive(Clone)]
 pub struct ResourcesController {
@@ -87,8 +88,8 @@ impl ResourcesController {
         }
     }
 
-    pub fn get_sprite_props(&self, sprite_id: usize) -> Option<(SpriteProperties, SpriteAnimation)> {
-        let props = self.project_state.sprite_properties.read().get(&sprite_id).cloned()?;
+    pub fn get_sprite_props(&self, sprite_id: usize) -> Option<(SpriteGroupProperties, SpriteAnimation)> {
+        let props = self.project_state.sprite_group_properties.read().get(&sprite_id).cloned()?;
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(animation) = engine.get_sprites_animations(Some(sprite_id)).first().cloned() {
             Some((props, animation))
@@ -97,7 +98,7 @@ impl ResourcesController {
         }
     }
 
-    pub fn set_sprite_props(&mut self, sprite_id: usize, props: &SpriteProperties, animation: &SpriteAnimation) {
+    pub fn set_sprite_props(&mut self, sprite_id: usize, props: &SpriteGroupProperties, animation: &SpriteAnimation) {
         if let Some(engine) = self.engine.borrow().as_ref() {
             let mut animations = engine.get_sprites_animations(None);
             for sprite_animation in &mut animations {
@@ -108,68 +109,63 @@ impl ResourcesController {
             engine.set_scenario(animations);
             self.scenario_update_signal.set(true);
         }
-        self.project_state.sprite_properties.insert(sprite_id, props.clone());
+        self.project_state.sprite_group_properties.insert(sprite_id, props.clone());
         self.sprites_update_signal.set(true);
     }
 
-    pub fn add_new_sprite_animation(&mut self, template: SpriteAnimation, props: SpriteProperties) {
+    pub fn add_new_sprite_animation(&mut self, templates: Vec<SpriteAnimation>, mut props: SpriteGroupProperties) {
         if let Some(engine) = self.engine.borrow().as_ref() {
-            let proportion = SpriteEditController::sprite_proportion(engine, &template);
-
             let mut sprites = engine.get_sprites_animations(None);
-            let sprite_id = sprites.len();
-            let cur_offset = engine.get_offset();
-            let aspect_ratio = *self.project_state.aspect_ratio.read();
-            let animation = SpriteAnimation {
-                sprite_id,
-                data: template.data,
-                smooth_factor: template.smooth_factor,
-                states: Self::create_default_animation(
-                    cur_offset, aspect_ratio, proportion,
-                    props.parallax_factor, self.project_state.properties.read().default_text_color),
-            };
-            sprites.push(animation);
+            props.main_sprite_id = sprites.len();
+            props.sprites = vec![];
+            let offset = engine.get_offset();
+
+            let mut rel_y = 0.0;
+            for template in templates {
+                let proportion = SpriteEditController::sprite_proportion(engine, &template);
+                let sprite_id = sprites.len();
+                if sprite_id > props.main_sprite_id {
+                    props.sprites.push(sprite_id);
+                    props.relations.insert(sprite_id, (0.0, rel_y));
+                }
+                let aspect_ratio = *self.project_state.aspect_ratio.read();
+
+                let color = self.project_state.properties.read().default_text_color;
+                let cur_state = SpriteState {
+                    offset,
+                    x: 0.0,
+                    y: 0.5 / aspect_ratio,
+                    from_bottom: false,
+                    width: 1.0,
+                    color: [color[0], color[1], color[2], 255],
+                    easing: Easing::default(),
+                };
+                let (first_state, final_state) = SpriteArrange::create_init_and_final_states(
+                    &cur_state,
+                    props.parallax_factor,
+                    aspect_ratio,
+                    proportion,
+                    false,
+                    (0.0, rel_y),
+                );
+
+                let animation = SpriteAnimation {
+                    sprite_id,
+                    data: template.data,
+                    smooth_factor: template.smooth_factor,
+                    states: vec![first_state, final_state],
+                };
+                rel_y += 1.0 / proportion;
+                sprites.push(animation);
+            }
+
             engine.set_scenario(sprites);
-            self.project_state.add_sprite_properties(sprite_id, props);
-            self.project_state.select_sprite(sprite_id);
+            let group_id = self.project_state.sprite_group_properties.len();
+            self.project_state.add_group_properties(group_id, props);
+            self.project_state.select_sprite_group(group_id);
             self.sprites_update_signal.set(true);
+            self.scenario_update_signal.set(true);
         }
-    }
-
-    fn create_default_animation(
-        cur_offset: f32,
-        aspect_ratio: f32,
-        item_proportion: f32,
-        parallax_factor: f32,
-        color: [u8; 3]
-    ) -> Vec<SpriteState> {
-        let start_y = 1.0 / aspect_ratio;
-        let end_y = -1.0 / item_proportion;
-        let start_offset = cur_offset - (start_y - end_y) * 0.5 * parallax_factor;
-        let correction = if start_offset < 0.0 {-start_offset} else {0.0};
-        let start_y = start_y - correction / parallax_factor;
-        let start_offset = start_offset + correction;
-        let end_offset = start_offset + (start_y - end_y) * parallax_factor;
-
-        let state_zero = SpriteState {
-            offset: start_offset,
-            x: 0.0,
-            y: 1.0 / aspect_ratio - start_y,
-            from_bottom: true,
-            width: 1.0,
-            color: [color[0], color[1], color[2], 255],
-            easing: Easing::default(),
-        };
-        let state_one = SpriteState {
-            offset: end_offset,
-            x: 0.0,
-            y: end_y,
-            from_bottom: false,
-            width: 1.0,
-            color: [color[0], color[1], color[2], 255],
-            easing: Easing::default(),
-        };
-        vec![state_zero, state_one]
     }
     
     pub fn get_cur_tab(&self) -> usize {

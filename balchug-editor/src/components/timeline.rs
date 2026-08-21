@@ -18,7 +18,7 @@ struct TimeLineView {
 
 #[derive(Copy, Clone, PartialEq)]
 pub struct TimeLinePoint {
-    pub sprite_index: usize,
+    pub sprite_group_index: usize,
     pub state_index: usize,
     svg_x: f32,
     svg_y: f32,
@@ -26,7 +26,7 @@ pub struct TimeLinePoint {
 
 #[derive(Clone, PartialEq)]
 pub struct TimeLinePoints {
-    pub sprite_index: usize,
+    pub sprite_group_index: usize,
     pub states_indices: Vec<usize>,
 }
 
@@ -55,14 +55,14 @@ pub fn TimeLine(controller: SpriteEditController, resources_controller: Resource
         }
     };
 
-    let titles = use_memo(move || c3.get_sprite_titles());
+    let titles = use_memo(move || c3.get_groups_titles());
     rsx! {
         div {
             id: "timeline_titles",
             class: "timeline-titles",
-            for (sprite_id, title) in titles.read().iter().enumerate() {
-                SpriteControl {
-                    sprite_id,
+            for (group_id, title) in titles.read().iter().enumerate() {
+                SpriteGroupControl {
+                    group_id,
                     title,
                     controller: c4.clone(),
                     resources_controller: resources_controller.clone(),
@@ -100,7 +100,7 @@ pub fn TimeLine(controller: SpriteEditController, resources_controller: Resource
             svg {
                 id: "timeline_svg",
                 style: "height:100%;width:100%;",
-                for (index, a) in c2.get_sprites_states().iter().enumerate() {
+                for (index, a) in c2.get_groups_main_sprite_states().iter().enumerate() {
                     AnimationPath {
                         states: a.states.clone(),
                         index,
@@ -122,27 +122,26 @@ pub fn TimeLine(controller: SpriteEditController, resources_controller: Resource
 }
 
 #[component]
-fn SpriteControl(sprite_id: usize, title: String, controller: SpriteEditController, resources_controller: ResourcesController) -> Element {
+fn SpriteGroupControl(group_id: usize, title: String, controller: SpriteEditController, resources_controller: ResourcesController) -> Element {
     let mut c0 = controller.clone();
     let rc0 = resources_controller.clone();
     rsx! {
         div {
-            id: "sprite_{sprite_id}_control",
+            id: "group_{group_id}_control",
             class: "timeline-sprite-control",
             style: "width:{LAYER_WIDTH - 4}px",
             button {
-                id: "sprite_{sprite_id}_edit",
+                id: "group_{group_id}_edit",
                 class: "btn-small btn-secondary",
                 onclick: move |_| {
-                    info!("Set edit sprite signal to {sprite_id}");
-                    rc0.get_edit_sprite_signal().set(Some(sprite_id));
+                    rc0.get_edit_sprite_signal().set(Some(group_id));
                 },
                 "."
             }
             div {
                 class: "timeline-sprite-title",
                 onclick: move |_| {
-                    c0.set_timeline_sprite(sprite_id);
+                    c0.set_timeline_group(group_id);
                 },
                 "{title}"
             }
@@ -202,7 +201,7 @@ fn AnimationPath(states: Vec<SpriteState>, index: usize, view: TimeLineView, poi
 fn CurPointMark(selected_points_memo: Memo<Option<TimeLinePoints>>, points_store: Store<Vec<TimeLinePoint>>) -> Element {
     if let Some(selected_points) = selected_points_memo.read().as_ref()
         && !selected_points.states_indices.is_empty() {
-        let sprite_index = selected_points.sprite_index;
+        let sprite_index = selected_points.sprite_group_index;
         rsx! {
             for state_index in selected_points.states_indices.iter() {
                 path {
@@ -231,7 +230,7 @@ fn CurOffsetPath(cur_offset: f32, view: TimeLineView) -> Element {
 
 fn build_mark_d(sprite_index: usize, state_index: usize, points: Store<Vec<TimeLinePoint>>) -> String {
     if let Some(cur_point) = points.read().iter()
-        .find(|p| sprite_index == p.sprite_index && state_index == p.state_index).copied() {
+        .find(|p| sprite_index == p.sprite_group_index && state_index == p.state_index).copied() {
         format!("M{},{} l5,-5 l5,5 l-5,5 l-5,-5 z", cur_point.svg_x as i32 - 5, cur_point.svg_y as i32)
     } else {
         String::new()
@@ -249,14 +248,14 @@ fn build_path_d(states: &[SpriteState], index: usize, view: TimeLineView, mut po
         .map(|(i, state)| (i, (state.offset - view.offset) * view.scale))
         .filter(|(_, y)| *y > 0.0 && *y < view.height)
         .map(|(i, y)| TimeLinePoint {
-            sprite_index: index,
+            sprite_group_index: index,
             state_index: i,
             svg_x: x as f32,
             svg_y: y,
         })
         .collect::<Vec<_>>();
     let mut points_write = points_store.write();
-    points_write.retain(|point| point.sprite_index != index);
+    points_write.retain(|point| point.sprite_group_index != index);
     points_write.extend_from_slice(&points);
     if points.is_empty() {
         return if states.is_empty() {

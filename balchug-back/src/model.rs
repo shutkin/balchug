@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use balchug_common::api::{ProjectProperties, ProjectSpriteProperties};
+use balchug_common::api::{ProjectProperties, ProjectSpriteGroupProperties};
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
 use serde::{Deserialize, Serialize};
@@ -11,5 +11,5 @@ pub struct BalchugProject {
     pub images_atlas: Atlas,
     pub scenario: Scenario,
     pub thumbs: Vec<String>,
-    pub sprite_properties: HashMap<usize, ProjectSpriteProperties>,
+    pub sprite_properties: HashMap<usize, ProjectSpriteGroupProperties>,
 }
