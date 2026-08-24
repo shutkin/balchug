@@ -50,8 +50,8 @@ pub struct ProjectSpriteGroupProperties {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct UpdateSpritesPropsRq {
-    pub sprites_properties: HashMap<usize, ProjectSpriteGroupProperties>,
+pub struct UpdateGroupsPropsRq {
+    pub groups_properties: HashMap<usize, ProjectSpriteGroupProperties>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

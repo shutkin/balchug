@@ -7,7 +7,7 @@ use reqwest::Client;
 use reqwest::header::CONTENT_TYPE;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Blob, HtmlAnchorElement, Url};
-use balchug_common::api::{AddImageResponse, OpenProjectResponse, ProjectProperties, ProjectSpriteGroupProperties, StartProjectResponse, UpdateProjectPropertiesRq, UpdateScenarioRq, UpdateSpritesPropsRq};
+use balchug_common::api::{AddImageResponse, OpenProjectResponse, ProjectProperties, ProjectSpriteGroupProperties, StartProjectResponse, UpdateProjectPropertiesRq, UpdateScenarioRq, UpdateGroupsPropsRq};
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
 use crate::states::project_state::SpriteGroupProperties;
@@ -94,10 +94,10 @@ impl Api {
         }
     }
 
-    pub async fn update_sprites_props(&self, props: HashMap<usize, SpriteGroupProperties>) {
-        let mut sprites_properties = HashMap::new();
+    pub async fn update_groups_props(&self, props: HashMap<usize, SpriteGroupProperties>) {
+        let mut groups_properties = HashMap::new();
         for (group_id, properties) in props {
-            sprites_properties.insert(group_id, ProjectSpriteGroupProperties {
+            groups_properties.insert(group_id, ProjectSpriteGroupProperties {
                 main_sprite: properties.main_sprite_id,
                 sprites: properties.sprites.clone(),
                 title: properties.title,
@@ -105,9 +105,9 @@ impl Api {
             });
         }
 
-        let url = format!("{SERVER_URL}/{}/sprites", self.project_id.borrow());
-        let data = UpdateSpritesPropsRq {
-            sprites_properties,
+        let url = format!("{SERVER_URL}/{}/groups", self.project_id.borrow());
+        let data = UpdateGroupsPropsRq {
+            groups_properties,
         };
         match self.http_client.post(url).json(&data).send().await {
             Ok(_) => {

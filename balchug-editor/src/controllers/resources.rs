@@ -6,8 +6,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 use balchug_common::atlas::Atlas;
 use balchug_common::sprite::{SpriteAnimation, SpriteState, Easing};
-use crate::controllers::sprite_arrange::SpriteArrange;
-use crate::controllers::sprite_editor::SpriteEditController;
+use crate::controllers::group_utils::GroupUtils;
 use crate::states::project_state::{ProjectState, SpriteGroupProperties};
 
 #[derive(Clone)]
@@ -19,7 +18,7 @@ pub struct ResourcesController {
     adding_image_id: Signal<Option<usize>>,
     text_edit_open: Signal<bool>,
     edit_sprite_signal: Signal<Option<usize>>,
-    sprites_update_signal: Rc<Cell<bool>>,
+    groups_update_signal: Rc<Cell<bool>>,
     scenario_update_signal: Rc<Cell<bool>>,
 }
 
@@ -34,7 +33,7 @@ impl ResourcesController {
         api: Api,
         engine: Rc<RefCell<Option<BalchugEngine>>>,
         project_state: ProjectState,
-        sprites_update_signal: Rc<Cell<bool>>,
+        groups_update_signal: Rc<Cell<bool>>,
         scenario_update_signal: Rc<Cell<bool>>,
     ) -> Self {
         Self {
@@ -45,7 +44,7 @@ impl ResourcesController {
             adding_image_id: Signal::new(None),
             text_edit_open: Signal::new(false),
             edit_sprite_signal: Signal::new(None),
-            sprites_update_signal,
+            groups_update_signal,
             scenario_update_signal,
         }
     }
@@ -110,7 +109,7 @@ impl ResourcesController {
             self.scenario_update_signal.set(true);
         }
         self.project_state.sprite_group_properties.insert(sprite_id, props.clone());
-        self.sprites_update_signal.set(true);
+        self.groups_update_signal.set(true);
     }
 
     pub fn add_new_sprite_animation(&mut self, templates: Vec<SpriteAnimation>, mut props: SpriteGroupProperties) {
@@ -120,15 +119,13 @@ impl ResourcesController {
             props.sprites = vec![];
             let offset = engine.get_offset();
 
-            let mut rel_y = 0.0;
+            let aspect_ratio = *self.project_state.aspect_ratio.read();
+            let mut sprite_id = sprites.len();
+            let mut new_sprites = Vec::with_capacity(templates.len());
             for template in templates {
-                let proportion = SpriteEditController::sprite_proportion(engine, &template);
-                let sprite_id = sprites.len();
                 if sprite_id > props.main_sprite_id {
                     props.sprites.push(sprite_id);
-                    props.relations.insert(sprite_id, (0.0, rel_y));
                 }
-                let aspect_ratio = *self.project_state.aspect_ratio.read();
 
                 let color = self.project_state.properties.read().default_text_color;
                 let cur_state = SpriteState {
@@ -140,30 +137,39 @@ impl ResourcesController {
                     color: [color[0], color[1], color[2], 255],
                     easing: Easing::default(),
                 };
-                let (first_state, final_state) = SpriteArrange::create_init_and_final_states(
-                    &cur_state,
-                    props.parallax_factor,
-                    aspect_ratio,
-                    proportion,
-                    false,
-                    (0.0, rel_y),
-                );
 
                 let animation = SpriteAnimation {
                     sprite_id,
                     data: template.data,
                     smooth_factor: template.smooth_factor,
-                    states: vec![first_state, final_state],
+                    states: vec![cur_state, cur_state],
                 };
-                rel_y += 1.0 / proportion;
-                sprites.push(animation);
+                 new_sprites.push(animation);
+
+                sprite_id += 1;
             }
+
+            let relations = GroupUtils::calculate_text_relation(engine, &new_sprites);
+            for mut new_sprite in new_sprites {
+                let proportion = GroupUtils::sprite_proportion(engine, &new_sprite);
+                let cur_state = &new_sprite.states[0];
+                let (first, last) = GroupUtils::create_init_and_final_states(
+                    cur_state,
+                    props.parallax_factor,
+                    aspect_ratio,
+                    proportion,
+                    false,
+                );
+                new_sprite.states = vec![first, last];
+                sprites.push(new_sprite);
+            }
+            props.relations = relations;
 
             engine.set_scenario(sprites);
             let group_id = self.project_state.sprite_group_properties.len();
             self.project_state.add_group_properties(group_id, props);
             self.project_state.select_sprite_group(group_id);
-            self.sprites_update_signal.set(true);
+            self.groups_update_signal.set(true);
             self.scenario_update_signal.set(true);
         }
     }

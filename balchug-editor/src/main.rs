@@ -10,6 +10,7 @@ use crate::components::workspace::Workspace;
 use crate::controllers::api::Api;
 use crate::controllers::project_controller::ProjectController;
 use crate::controllers::resources::ResourcesController;
+use crate::controllers::group_utils::GroupUtils;
 use crate::controllers::sprite_editor::SpriteEditController;
 use crate::controllers::storage::{LocalStorage, KEY_PROJECT_ID};
 use crate::controllers::updates_sender::{PinnedFuture, UpdatesHandler, UpdatesSender};
@@ -57,7 +58,7 @@ impl UpdatesHandler<HashMap<usize, SpriteGroupProperties>> for SpritesUpdateHand
     }
 
     fn send(&self, value: HashMap<usize, SpriteGroupProperties>) -> PinnedFuture<'_> {
-        Box::pin(self.api.update_sprites_props(value))
+        Box::pin(self.api.update_groups_props(value))
     }
 }
 
@@ -103,7 +104,7 @@ fn App() -> Element {
             api: api.clone(),
         }
     );
-    let sprites_update_signal = sprites_update_sender.start();
+    let groups_update_signal = sprites_update_sender.start();
 
     // load font when assets url is known
     let api_clone = api.clone();
@@ -126,7 +127,7 @@ fn App() -> Element {
         api.clone(),
         engine.clone(),
         project_state.clone(),
-        sprites_update_signal.clone(),
+        groups_update_signal.clone(),
         scenario_update_signal.clone(),
     );
 
@@ -141,24 +142,29 @@ fn App() -> Element {
 
             project_state_clone.properties.set(resp.project_properties.clone());
 
-            let mut sprite_props_map = HashMap::new();
-            for (&sprite_id, props) in &resp.sprites_groups {
-                sprite_props_map.insert(sprite_id, SpriteGroupProperties {
-                    main_sprite_id: props.main_sprite,
-                    sprites: props.sprites.clone(),
-                    title: props.title.clone(),
-                    parallax_factor: props.parallax_factor,
-                    relations: HashMap::new(),
-                });
-            }
-            project_state_clone.sprite_group_properties.replace(sprite_props_map);
-
             if let Some(engine) = engine_clone.borrow().as_ref() {
                 let sprites = resp.scenario.sprites.clone();
                 engine.set_scenario(sprites);
                 engine.update_settings(Settings {
                     background_color: resp.project_properties.background_color,
                 });
+
+                let mut group_props_map = HashMap::new();
+                for (&group_id, props) in &resp.sprites_groups {
+                    let mut group_sprites = Vec::with_capacity(props.sprites.len() + 1);
+                    group_sprites.push(resp.scenario.sprites[props.main_sprite].clone());
+                    for &sprite_id in &props.sprites {
+                        group_sprites.push(resp.scenario.sprites[sprite_id].clone());
+                    }
+                    group_props_map.insert(group_id, SpriteGroupProperties {
+                        main_sprite_id: props.main_sprite,
+                        sprites: props.sprites.clone(),
+                        title: props.title.clone(),
+                        parallax_factor: props.parallax_factor,
+                        relations: GroupUtils::calculate_text_relation(engine, &group_sprites),
+                    });
+                }
+                project_state_clone.sprite_group_properties.replace(group_props_map);
             }
         }
     });

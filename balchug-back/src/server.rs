@@ -1,29 +1,30 @@
 use crate::CommonError;
 use crate::atlas::{atlas_hash, create_atlas, create_empty_atlas, optimize_atlas_items};
 use crate::codegen::{CARGO_TOML, INDEX_HTML, LIB_CODE, TRUNK_TOML, animations_to_code, atlas_to_code};
-use crate::model::BalchugProject;
+use crate::font::subset_font;
+use crate::model::{BalchugProject, ProjectGuard};
 use balchug_common::api::{ProjectProperties, ProjectSpriteGroupProperties};
 use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
+use log::{error, info};
 use rand::distr::{Alphanumeric, SampleString};
 use std::collections::HashMap;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
-use log::{error, info};
+use tokio::sync::Semaphore;
 use zip::CompressionMethod;
 use zip::write::SimpleFileOptions;
 use zip_extensions::zip_writer::zip_create_from_directory_with_options;
-use crate::font::subset_font;
 
 const STORE_DIR: &str = "./store";
 
 #[derive(Clone, Default)]
 pub struct Server {
     projects: Arc<Mutex<HashMap<String, BalchugProject>>>,
+    semaphore: Arc<Mutex<HashMap<String, Arc<Semaphore>>>>,
 }
 
 impl Server {
-
     fn read_project(project_id: &str) -> Result<BalchugProject, CommonError> {
         let json = std::fs::read(format!("{STORE_DIR}/{project_id}/project.json"))?;
         let project = serde_json::from_slice::<BalchugProject>(&json)?;
@@ -76,7 +77,7 @@ impl Server {
             scenario: Scenario::default(),
             images_atlas: Atlas::default(),
             thumbs: Vec::new(),
-            sprite_properties: HashMap::new(),
+            groups_properties: HashMap::new(),
         };
         std::fs::create_dir(format!("{STORE_DIR}/{}", project.id))?;
         std::fs::create_dir(format!("{STORE_DIR}/{}/image", project.id))?;
@@ -87,14 +88,34 @@ impl Server {
         Ok(project)
     }
 
-    pub fn get_project(&self, id: &str) -> Option<BalchugProject> {
-        self.projects.lock().ok()?.get(id).cloned()
+    pub async fn get_project(&self, id: &str) -> Option<ProjectGuard> {
+        let semaphore = self.semaphore.lock().ok()?
+            .entry(id.to_string())
+            .or_insert(Arc::new(Semaphore::new(1)))
+            .clone();
+        let permit = semaphore.acquire_owned().await.ok()?;
+        info!("Lock project {id}");
+
+        if let Ok(projects) = self.projects.lock()
+            && let Some(project) = projects.get(id) {
+            Some(ProjectGuard {
+                project: project.clone(),
+                _permit: permit,
+            })
+        } else {
+            if let Ok(mut semaphores) = self.semaphore.lock() {
+                info!("Drop unused semaphore {id}");
+                semaphores.remove(id);
+            }
+            None
+        }
     }
-    
+
     fn put_project(&self, project: BalchugProject) -> Result<(), CommonError> {
         Self::save_project_json(&project.clone());
-        let mut lock = self.projects.lock().map_err(|_| "Failed to lock projects map")?;
-        lock.insert(project.id.clone(), project);
+        let mut projects = self.projects.lock().map_err(|_| "Failed to lock projects map")?;
+        projects.insert(project.id.clone(), project);
+        //lock.insert(project.id.clone(), project);
         Ok(())
     }
 
@@ -130,8 +151,8 @@ impl Server {
         Ok(())
     }
 
-    pub fn update_sprite_props(&self, mut project: BalchugProject, props: HashMap<usize, ProjectSpriteGroupProperties>) -> Result<(), CommonError> {
-        project.sprite_properties = props;
+    pub fn update_groups_props(&self, mut project: BalchugProject, props: HashMap<usize, ProjectSpriteGroupProperties>) -> Result<(), CommonError> {
+        project.groups_properties = props;
         self.put_project(project)?;
         Ok(())
     }

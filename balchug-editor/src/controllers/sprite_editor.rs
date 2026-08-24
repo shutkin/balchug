@@ -3,14 +3,14 @@ use crate::states::project_state::ProjectState;
 use crate::states::sprite_editor::SpriteEditorState;
 use balchug_common::F32Rect;
 use balchug_common::sprite::{Easing, SpriteAnimation, SpriteData, SpriteState};
-use balchug_engine::{BalchugEngine, OffsetListener, STATE_OFFSET_LAG, TEXT_SIZE_FACTOR, start_engine};
+use balchug_engine::{BalchugEngine, OffsetListener, STATE_OFFSET_LAG, start_engine};
 use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::rc::Rc;
 use web_sys::{HtmlCanvasElement, Window};
-use crate::controllers::sprite_arrange::SpriteArrange;
+use crate::controllers::group_utils::GroupUtils;
 
 const EASING_LINEAR: &str = "Linear";
 const EASING_IN_CUBIC: &str = "In Cubic";
@@ -119,19 +119,6 @@ impl SpriteEditController {
 
     pub fn get_cur_state(&self) -> Option<SpriteEditorState> {
         self.state_memo.read().cloned()
-    }
-    
-    pub fn sprite_proportion(engine: &BalchugEngine, sprite_animation: &SpriteAnimation) -> f32 {
-        match &sprite_animation.data {
-            SpriteData::Image(image_data) => {
-                engine.get_atlas_item(image_data.atlas_item_id).map(|item| {
-                    item.origin_width as f32 / item.origin_height as f32
-                }).unwrap_or(1.0)
-            }
-            SpriteData::Text(text_data) => {
-                1.0 / (text_data.size as f32 * TEXT_SIZE_FACTOR)
-            }
-        }
     }
 
     fn get_main_sprite_id(&self, sprite_editor_state: &SpriteEditorState) -> usize {
@@ -277,7 +264,7 @@ impl SpriteEditController {
         sprite_state: SpriteState,
         canvas_rect: F32Rect
     ) -> F32Rect {
-        let proportion = Self::sprite_proportion(engine, sprite_animation);
+        let proportion = GroupUtils::sprite_proportion(engine, sprite_animation);
         let width = if let SpriteData::Text(data) = &sprite_animation.data {
             engine.measure_text(data, sprite_state.width).0
         } else {
@@ -322,7 +309,7 @@ impl SpriteEditController {
                 let rect = state.rect;
                 let mut sprite_state = state.sprite_state;
                 sprite_state.offset += offset_delta;
-                self.state.set(Some(self.update_editor_state(state, sprite_state, vec![animation], engine, rect, &HashMap::new())));
+                self.state.set(Some(self.update_editor_state(state, sprite_state, vec![animation], engine, rect, &Vec::new())));
             } else {
                 let states = &animation.states;
                 let points = state.timeline_points.states_indices.len();
@@ -368,7 +355,7 @@ impl SpriteEditController {
                                           new_sprite_state, state.parallax_factor);
 
                 if group_props.sprites.is_empty() {
-                    self.state.set(Some(self.update_editor_state(state, new_sprite_state, vec![main_animation], engine, new_rect, &HashMap::new())));
+                    self.state.set(Some(self.update_editor_state(state, new_sprite_state, vec![main_animation], engine, new_rect, &Vec::new())));
                 } else {
                     let mut animations = Vec::with_capacity(group_props.sprites.len() + 1);
                     animations.push(main_animation.clone());
@@ -390,24 +377,28 @@ impl SpriteEditController {
         animations: Vec<SpriteAnimation>,
         engine: &BalchugEngine,
         new_rect: F32Rect,
-        relations: &HashMap<usize, (f32, f32)>,
+        relations: &[HashMap<usize, (f32, f32)>],
     ) -> SpriteEditorState {
+        let root_animation = if animations.len() > 1 {Some(animations[0].clone())} else {None};
         for mut animation in animations {
             if cur_state.timeline_points.states_indices.len() == 2 && animation.states.len() == 2 {
                 let canvas_rect = self.canvas_rect.get();
                 let first_index = cur_state.timeline_points.states_indices[0];
                 let last_index = cur_state.timeline_points.states_indices[cur_state.timeline_points.states_indices.len() - 1];
-                let proportion = Self::sprite_proportion(engine, &animation);
-                let (first_state, last_state) = SpriteArrange::create_init_and_final_states(
+                let proportion = GroupUtils::sprite_proportion(engine, &animation);
+                let (first_state, last_state) = GroupUtils::create_init_and_final_states(
                     &new_sprite_state,
                     cur_state.parallax_factor,
                     canvas_rect.width / canvas_rect.height,
                     proportion,
                     animation.states[first_index].from_bottom,
-                    relations.get(&animation.sprite_id).copied().unwrap_or_default(),
                 );
                 animation.states[first_index] = first_state;
                 animation.states[last_index] = last_state;
+            } else {
+                if let Some(root_animation) = root_animation.as_ref() {
+                    GroupUtils::apply_relation_to_states(&mut animation, root_animation, relations);
+                }
             }
             engine.set_sprite_animation_states(animation.sprite_id, animation.states);
         }
@@ -469,7 +460,7 @@ impl SpriteEditController {
                 && let Some(mut animation) = engine.get_sprites_animations(Some(self.get_main_sprite_id(&cur_state))).first().cloned() {
                 Self::apply_states_change(&cur_state.timeline_points, &mut animation.states, new_sprite_state, cur_state.parallax_factor);
                 let new_rect = Self::scale_rect(engine, &animation, new_sprite_state, self.canvas_rect.get());
-                self.state.set(Some(self.update_editor_state(cur_state, new_sprite_state, vec![animation], engine, new_rect, &HashMap::new())));
+                self.state.set(Some(self.update_editor_state(cur_state, new_sprite_state, vec![animation], engine, new_rect, &Vec::new())));
             }
         }
     }

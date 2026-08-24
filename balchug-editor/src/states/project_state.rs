@@ -8,7 +8,7 @@ pub struct SpriteGroupProperties {
     pub sprites: Vec<usize>,
     pub title: String,
     pub parallax_factor: f32,
-    pub relations: HashMap<usize, (f32, f32)>,
+    pub relations: Vec<HashMap<usize, (f32, f32)>>,
 }
 
 impl Default for SpriteGroupProperties {
@@ -18,7 +18,7 @@ impl Default for SpriteGroupProperties {
             sprites: Vec::new(),
             title: String::new(),
             parallax_factor: 1.0,
-            relations: HashMap::new(),
+            relations: Vec::new(),
         }
     }
 }
