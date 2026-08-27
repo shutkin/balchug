@@ -100,9 +100,9 @@ pub fn TimeLine(controller: SpriteEditController, resources_controller: Resource
             svg {
                 id: "timeline_svg",
                 style: "height:100%;width:100%;",
-                for (index, a) in c2.get_groups_main_sprite_states().iter().enumerate() {
+                for (index, states) in c2.get_groups_states().into_iter().enumerate() {
                     AnimationPath {
-                        states: a.states.clone(),
+                        states: states,
                         index,
                         view: build_view(),
                         points: points_store,
@@ -134,7 +134,7 @@ fn SpriteGroupControl(group_id: usize, title: String, controller: SpriteEditCont
                 id: "group_{group_id}_edit",
                 class: "btn-small btn-secondary",
                 onclick: move |_| {
-                    rc0.get_edit_sprite_signal().set(Some(group_id));
+                    rc0.get_edit_group_signal().set(Some(group_id));
                 },
                 "."
             }

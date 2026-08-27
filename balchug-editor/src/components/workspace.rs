@@ -8,7 +8,7 @@ use wasm_bindgen::JsCast;
 use web_sys::window;
 use crate::components::project::ProjectControl;
 use crate::components::resources::{ImagesBank, ImageSpriteDialog, TextLine, TextSpriteDialog};
-use crate::components::sprite_props::SpritePropsDialog;
+use crate::components::group_edit::GroupEditDialog;
 use crate::controllers::project_controller::ProjectController;
 use crate::controllers::resources::ResourcesController;
 
@@ -147,7 +147,7 @@ fn TimelinePanel(controller: SpriteEditController, resources_controller: Resourc
             class: "panel-box",
             TimeLine {controller: controller.clone(), resources_controller: resources_controller.clone()}
             StateEditor {controller: controller.clone()}
-            SpritePropsDialog {controller: resources_controller.clone()}
+            GroupEditDialog {controller: resources_controller.clone()}
         }
     }
 }

@@ -6,11 +6,12 @@ mod font;
 
 use crate::server::Server;
 use actix_cors::Cors;
-use actix_web::error::{ErrorNotFound, ErrorInternalServerError};
-use actix_web::web::PayloadConfig;
-use actix_web::{get, http, post, web, App, HttpResponse, HttpServer, Responder};
+use actix_web::error::{ErrorInternalServerError, ErrorNotFound};
 use actix_web::http::header::{ContentDisposition, DispositionParam, DispositionType};
-use balchug_common::api::{AddImageResponse, OpenProjectResponse, StartProjectResponse, UpdateProjectPropertiesRq, UpdateScenarioRq, UpdateGroupsPropsRq};
+use actix_web::web::PayloadConfig;
+use actix_web::{App, HttpResponse, HttpServer, Responder, get, http, post, web};
+use balchug_common::api::{AddImageResponse, OpenProjectResponse, StartProjectResponse, UpdateGroupsRq, UpdateProjectPropertiesRq};
+use balchug_common::scenario::Scenario;
 use log::{error, info};
 
 pub type CommonError = Box<dyn std::error::Error + Send + Sync>;
@@ -79,28 +80,15 @@ async fn upload_image(
 }
 
 #[post("/{id}/groups")]
-async fn update_groups_props(path: web::Path<String>, server: web::Data<Server>, rq: web::Json<UpdateGroupsPropsRq>)
+async fn update_groups(path: web::Path<String>, server: web::Data<Server>, rq: web::Json<UpdateGroupsRq>)
     -> Result<String, actix_web::Error> {
     let id = path.into_inner();
     let guard = server
         .get_project(&id).await
         .ok_or(ErrorNotFound("Project not found"))?;
     info!("Project {} groups update", id);
-    server.update_groups_props(guard.project, rq.groups_properties.clone())
+    server.update_groups_props(guard.project, rq.groups.clone())
         .map_err(|err| internal_err("groups", err))?;
-    Ok(String::from("OK"))
-}
-
-#[post("/{id}/scenario")]
-async fn update_scenario(path: web::Path<String>, server: web::Data<Server>, rq: web::Json<UpdateScenarioRq>)
-    -> Result<String, actix_web::Error> {
-    let id = path.into_inner();
-    let guard = server
-        .get_project(&id).await
-        .ok_or(ErrorNotFound("Project not found"))?;
-    info!("Project {} scenario update", id);
-    server.update_scenario(guard.project, rq.scenario.clone())
-        .map_err(|err| internal_err("scenario", err))?;
     Ok(String::from("OK"))
 }
 
@@ -116,22 +104,24 @@ async fn get_project(path: web::Path<String>, server: web::Data<Server>)
         project_properties: project.props,
         images_thumbs: project.thumbs,
         atlas: project.images_atlas,
-        scenario: project.scenario,
-        sprites_groups: project.groups_properties,
+        groups: project.groups,
     };
     Ok(web::Json(resp))
 }
 
-#[get("/{id}/export")]
-async fn export_project(path: web::Path<String>, server: web::Data<Server>)
-                     -> Result<HttpResponse, actix_web::Error> {
+#[post("/{id}/export")]
+async fn export_project(
+    path: web::Path<String>,
+    server: web::Data<Server>,
+    rq: web::Json<Scenario>,
+) -> Result<HttpResponse, actix_web::Error> {
     let id = path.into_inner();
     let project = server
         .get_project(&id).await
         .ok_or(ErrorNotFound("Project not found"))?;
     let project_id = project.project.id.clone();
     let server_clone = server.clone();
-    let task = tokio::task::spawn_blocking(move || server_clone.compile(project.project));
+    let task = tokio::task::spawn_blocking(move || server_clone.compile(project.project, rq.0));
     let task_result = task.await.map_err(|err| internal_err("export", err.into()))?;
     Server::compile_clean(&project_id).map_err(|err| internal_err("export", err))?;
     let result = task_result.map_err(|err| internal_err("export", err))?;
@@ -168,8 +158,7 @@ async fn main() -> std::io::Result<()> {
             .service(assets)
             .service(update_project_props)
             .service(upload_image)
-            .service(update_groups_props)
-            .service(update_scenario)
+            .service(update_groups)
             .service(get_project)
             .service(export_project)
     })

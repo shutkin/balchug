@@ -1,20 +1,20 @@
-use std::hash::{DefaultHasher, Hash, Hasher};
+use crate::CommonError;
 use allsorts::binary::read::ReadScope;
 use allsorts::font::read_cmap_subtable;
 use allsorts::font_data::FontData;
 use allsorts::gsub::{GlyphOrigin, RawGlyph, RawGlyphFlags};
 use allsorts::subset;
 use allsorts::subset::{CmapTarget, SubsetProfile};
-use allsorts::tables::cmap::{Cmap, CmapSubtable};
 use allsorts::tables::FontTableProvider;
+use allsorts::tables::cmap::{Cmap, CmapSubtable};
 use allsorts::tinyvec::tiny_vec;
 use allsorts::unicode::VariationSelector;
-use log::info;
-use balchug_common::scenario::Scenario;
+use balchug_common::api::ProjectSpriteGroup;
 use balchug_common::sprite::SpriteData;
-use crate::CommonError;
+use log::info;
+use std::hash::{DefaultHasher, Hash, Hasher};
 
-pub fn subset_font(font_path: &str, scenario: &Scenario) -> Result<(Vec<u8>, String), CommonError> {
+pub fn subset_font(font_path: &str, scenario: &[ProjectSpriteGroup]) -> Result<(Vec<u8>, String), CommonError> {
     let scenario_chars = get_scenario_chars(scenario);
     let mut hasher = DefaultHasher::new();
     scenario_chars.hash(&mut hasher);
@@ -103,10 +103,10 @@ fn make_glyph(
     }
 }
 
-fn get_scenario_chars(scenario: &Scenario) -> String {
+fn get_scenario_chars(groups: &[ProjectSpriteGroup]) -> String {
     let mut chars = Vec::new();
-    for animation in &scenario.sprites {
-        if let SpriteData::Text(data) = &animation.data {
+    for group in groups {
+        if let SpriteData::Text(data) = &group.data {
             data.text.chars().for_each(|ch| {
                 if !chars.contains(&ch) {
                     chars.push(ch);

@@ -3,9 +3,8 @@ use crate::atlas::{atlas_hash, create_atlas, create_empty_atlas, optimize_atlas_
 use crate::codegen::{CARGO_TOML, INDEX_HTML, LIB_CODE, TRUNK_TOML, animations_to_code, atlas_to_code};
 use crate::font::subset_font;
 use crate::model::{BalchugProject, ProjectGuard};
-use balchug_common::api::{ProjectProperties, ProjectSpriteGroupProperties};
+use balchug_common::api::{ProjectProperties, ProjectSpriteGroup};
 use balchug_common::atlas::Atlas;
-use balchug_common::scenario::Scenario;
 use log::{error, info};
 use rand::distr::{Alphanumeric, SampleString};
 use std::collections::HashMap;
@@ -15,6 +14,7 @@ use tokio::sync::Semaphore;
 use zip::CompressionMethod;
 use zip::write::SimpleFileOptions;
 use zip_extensions::zip_writer::zip_create_from_directory_with_options;
+use balchug_common::scenario::Scenario;
 
 const STORE_DIR: &str = "./store";
 
@@ -74,10 +74,9 @@ impl Server {
         let project = BalchugProject {
             id,
             props: ProjectProperties::default(),
-            scenario: Scenario::default(),
             images_atlas: Atlas::default(),
             thumbs: Vec::new(),
-            groups_properties: HashMap::new(),
+            groups: Vec::new(),
         };
         std::fs::create_dir(format!("{STORE_DIR}/{}", project.id))?;
         std::fs::create_dir(format!("{STORE_DIR}/{}/image", project.id))?;
@@ -144,24 +143,18 @@ impl Server {
         
         Ok((thumbs, atlas))
     }
-    
-    pub fn update_scenario(&self, mut project: BalchugProject, scenario: Scenario) -> Result<(), CommonError> {
-        project.scenario = scenario;
+
+    pub fn update_groups_props(&self, mut project: BalchugProject, groups: Vec<ProjectSpriteGroup>) -> Result<(), CommonError> {
+        project.groups = groups;
         self.put_project(project)?;
         Ok(())
     }
 
-    pub fn update_groups_props(&self, mut project: BalchugProject, props: HashMap<usize, ProjectSpriteGroupProperties>) -> Result<(), CommonError> {
-        project.groups_properties = props;
-        self.put_project(project)?;
-        Ok(())
-    }
-
-    pub fn compile(&self, project: BalchugProject) -> Result<Vec<u8>, CommonError> {
+    pub fn compile(&self, project: BalchugProject, scenario: Scenario) -> Result<Vec<u8>, CommonError> {
         std::fs::create_dir_all(format!("/tmp/balchug/{}/src", project.id))?;
         std::fs::create_dir_all(format!("/tmp/balchug/{}/assets", project.id))?;
 
-        let scales = optimize_atlas_items(&project.images_atlas, &project.scenario, 1080);
+        let scales = optimize_atlas_items(&project.images_atlas, &project.groups, 1440);
         let (atlas_optimized, webp) = create_atlas(
             &format!("{STORE_DIR}/{}/image", project.id),
             &scales,
@@ -169,11 +162,11 @@ impl Server {
         let atlas_hash = atlas_hash(&atlas_optimized);
         std::fs::write(format!("/tmp/balchug/{}/assets/atlas-{}.webp", project.id, atlas_hash), webp)?;
 
-        let (font, font_hash) = subset_font("./font.otf", &project.scenario)?;
+        let (font, font_hash) = subset_font("./font.otf", &project.groups)?;
         std::fs::write(format!("/tmp/balchug/{}/assets/font-{}.otf", project.id, font_hash), font)?;
 
         let atlas_code = atlas_to_code(&atlas_optimized)?;
-        let scenario_code = animations_to_code(&project.scenario.sprites)?;
+        let scenario_code = animations_to_code(&scenario.sprites)?;
         let color = format!("{}, {}, {}", project.props.background_color[0], project.props.background_color[1], project.props.background_color[2]);
         std::fs::write(format!("/tmp/balchug/{}/Cargo.toml", project.id), CARGO_TOML)?;
         std::fs::write(format!("/tmp/balchug/{}/Trunk.toml", project.id), TRUNK_TOML)?;

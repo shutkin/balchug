@@ -132,24 +132,13 @@ impl BalchugEngine {
     }
 
     pub fn set_scenario(&self, sprites: Vec<SpriteAnimation>) {
-        let mut scenario = self.context.scenario.borrow().clone();
-        scenario.sprites = sprites;
-        self.context.scenario.replace(scenario);
+        self.context.scenario.borrow_mut().sprites = sprites;
         self.update();
     }
 
-    pub fn get_sprites_animations(&self, object_index: Option<usize>) -> Vec<SpriteAnimation> {
-        if let Some(index) = object_index {
-            self.context.scenario.borrow().sprites.get(index).cloned()
-                .into_iter().collect()
-        } else {
-            self.context.scenario.borrow().sprites.clone()
-        }
-    }
-
-    pub fn interpolate_state(&self, animation: &SpriteAnimation, offset: f32) -> Option<SpriteState> {
-        if let Some(mut result) = self.context.sprite_util.get().interpolate_state(animation, offset) {
-            if let Some(fixed_state) = animation.states.iter()
+    pub fn interpolate_state(&self, states: &[SpriteState], offset: f32, smooth_factor: f32) -> Option<SpriteState> {
+        if let Some(mut result) = self.context.sprite_util.get().interpolate_state(states, offset, smooth_factor) {
+            if let Some(fixed_state) = states.iter()
                 .find(|state| (offset - state.offset).abs() < STATE_OFFSET_LAG) {
                 result.easing = fixed_state.easing;
                 result.from_bottom = fixed_state.from_bottom;
@@ -179,15 +168,6 @@ impl BalchugEngine {
         if let Some(l) = self.context.offset_listener.borrow_mut().as_mut() {
             l.offset_change(offset);
         }
-        self.context.force_rerender.set(true);
-    }
-
-    pub fn set_sprite_animation_states(&self, object_index: usize, states: Vec<SpriteState>) {
-        let scenario = &mut self.context.scenario.borrow_mut();
-        scenario.sprites[object_index].states = states;
-        let width = self.context.canvas_width.get();
-        let max_scroll = scenario_max_offset(scenario) * width;
-        self.context.scroll.borrow_mut().set_limit_up(max_scroll);
         self.context.force_rerender.set(true);
     }
 
@@ -253,7 +233,7 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
     let (mut sprites, mut text_sprites) = (Vec::new(), Vec::new());
 
     for sprite_animation in &scenario.sprites {
-        if let Some(cur_state) = sprite_util.interpolate_state(sprite_animation, scaled_offset)
+        if let Some(cur_state) = sprite_util.interpolate_state(&sprite_animation.states, scaled_offset, sprite_animation.smooth_factor)
             && cur_state.color[3] > 0 {
             match &sprite_animation.data {
                 SpriteData::Image(image_data) => {

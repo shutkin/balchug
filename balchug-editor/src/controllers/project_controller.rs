@@ -2,9 +2,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use dioxus::prelude::*;
 use balchug_common::api::ProjectProperties;
+use balchug_common::scenario::Scenario;
 use balchug_engine::BalchugEngine;
 use balchug_engine::settings::Settings;
 use crate::controllers::api::Api;
+use crate::controllers::group_utils::GroupUtils;
 use crate::states::project_state::ProjectState;
 
 #[derive(Clone)]
@@ -91,10 +93,12 @@ impl ProjectController {
 
     pub fn download_distributive(&self) {
         let api_clone = self.api.clone();
+        let sprites = GroupUtils::groups_to_sprites(&self.state.get_groups());
         use_future(move || {
             let api_clone = api_clone.clone();
+            let sprites = sprites.clone();
             async move {
-                api_clone.download_dist().await
+                api_clone.download_dist(Scenario {sprites}).await
             }
         });
     }

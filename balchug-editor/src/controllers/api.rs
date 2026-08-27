@@ -1,16 +1,15 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
+use crate::states::project_state::SpriteGroup;
+use balchug_common::api::{AddImageResponse, OpenProjectResponse, ProjectProperties, ProjectSpriteGroup, StartProjectResponse, UpdateGroupsRq, UpdateProjectPropertiesRq};
+use balchug_common::atlas::Atlas;
 use dioxus::html::bytes::Bytes;
 use dioxus::prelude::*;
 use reqwest::Client;
 use reqwest::header::CONTENT_TYPE;
+use std::cell::RefCell;
+use std::rc::Rc;
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{Blob, HtmlAnchorElement, Url};
-use balchug_common::api::{AddImageResponse, OpenProjectResponse, ProjectProperties, ProjectSpriteGroupProperties, StartProjectResponse, UpdateProjectPropertiesRq, UpdateScenarioRq, UpdateGroupsPropsRq};
-use balchug_common::atlas::Atlas;
 use balchug_common::scenario::Scenario;
-use crate::states::project_state::SpriteGroupProperties;
 
 const SERVER_URL: &str = "http://localhost:3000";
 
@@ -94,20 +93,20 @@ impl Api {
         }
     }
 
-    pub async fn update_groups_props(&self, props: HashMap<usize, SpriteGroupProperties>) {
-        let mut groups_properties = HashMap::new();
-        for (group_id, properties) in props {
-            groups_properties.insert(group_id, ProjectSpriteGroupProperties {
-                main_sprite: properties.main_sprite_id,
-                sprites: properties.sprites.clone(),
-                title: properties.title,
-                parallax_factor: properties.parallax_factor,
-            });
-        }
+    pub async fn update_groups(&self, groups: Vec<SpriteGroup>) {
+        let groups = groups.into_iter()
+            .map(|group| ProjectSpriteGroup {
+                title: group.title,
+                data: group.data,
+                parallax_factor: group.parallax_factor,
+                smooth_factor: group.smooth_factor,
+                states: group.states,
+                max_width: group.max_width,
+            }).collect();
 
         let url = format!("{SERVER_URL}/{}/groups", self.project_id.borrow());
-        let data = UpdateGroupsPropsRq {
-            groups_properties,
+        let data = UpdateGroupsRq {
+            groups,
         };
         match self.http_client.post(url).json(&data).send().await {
             Ok(_) => {
@@ -115,21 +114,6 @@ impl Api {
             }
             Err(err) => {
                 Self::handle_reqwest_error("Failed to update sprites properties", err);
-            }
-        }
-    }
-
-    pub async fn update_scenario(&self, scenario: Scenario) {
-        let url = format!("{SERVER_URL}/{}/scenario", self.project_id.borrow());
-        let data = UpdateScenarioRq {
-            scenario,
-        };
-        match self.http_client.post(url).json(&data).send().await {
-            Ok(_) => {
-                info!("Scenario updated");
-            }
-            Err(err) => {
-                Self::handle_reqwest_error("Failed to update scenario",err);
             }
         }
     }
@@ -149,9 +133,9 @@ impl Api {
         None
     }
 
-    pub async fn download_dist(&self) {
+    pub async fn download_dist(&self, scenario: Scenario) {
         let url = format!("{SERVER_URL}/{}/export", self.project_id.borrow());
-        match self.http_client.get(url).send().await {
+        match self.http_client.post(url).json(&scenario).send().await {
             Ok(response) => {
                 if let Err(err) = Self::save_bytes(response.bytes().await, "dist.zip") {
                     error!("Failed to save bytes: {err:?}");

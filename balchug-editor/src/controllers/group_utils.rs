@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use crate::states::project_state::SpriteGroup;
 use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState};
 use balchug_engine::{BalchugEngine, TEXT_SIZE_FACTOR};
+use std::collections::HashMap;
 
 pub struct GroupUtils;
 
@@ -41,6 +42,20 @@ impl GroupUtils {
         };
         (first_state, last_state)
     }
+
+    pub fn groups_to_sprites(groups: &[SpriteGroup]) -> Vec<SpriteAnimation> {
+        let mut sprites = Vec::new();
+        for group in groups {
+            let sprite = SpriteAnimation {
+                sprite_id: sprites.len(),
+                data: group.data.clone(),
+                states: group.states.clone(),
+                smooth_factor: group.smooth_factor,
+            };
+            sprites.push(sprite);
+        }
+        sprites
+    }
     
     pub fn apply_relation_to_states(animation: &mut SpriteAnimation, root_sprite: &SpriteAnimation, relations: &[HashMap<usize, (f32, f32)>]) {
         if animation.sprite_id == root_sprite.sprite_id {
@@ -56,8 +71,8 @@ impl GroupUtils {
         }
     }
 
-    pub fn sprite_proportion(engine: &BalchugEngine, sprite_animation: &SpriteAnimation) -> f32 {
-        match &sprite_animation.data {
+    pub fn group_proportion(engine: &BalchugEngine, group: &SpriteGroup) -> f32 {
+        match &group.data {
             SpriteData::Image(image_data) => {
                 engine.get_atlas_item(image_data.atlas_item_id).map(|item| {
                     item.origin_width as f32 / item.origin_height as f32
@@ -69,7 +84,7 @@ impl GroupUtils {
         }
     }
 
-    pub fn calculate_text_relation(
+    /*pub fn calculate_text_relation(
         engine: &BalchugEngine,
         sprites: &[SpriteAnimation],
     ) -> Vec<HashMap<usize, (f32, f32)>> {
@@ -78,12 +93,12 @@ impl GroupUtils {
             let mut relations = HashMap::with_capacity(sprites.len());
             let mut rel_y = 0.0;
             for sprite in sprites {
-                let proportion = Self::sprite_proportion(engine, sprite);
+                let proportion = Self::group_proportion(engine, sprite);
                 relations.insert(sprite.sprite_id, (0.0, rel_y));
                 rel_y += state.width / proportion;
             }
             result.push(relations);
         }
         result
-    }
+    }*/
 }

@@ -4,9 +4,9 @@ use std::hash::{DefaultHasher, Hash, Hasher};
 use image::{DynamicImage, GenericImage, ImageReader, RgbaImage};
 use image::imageops::FilterType;
 use log::{error, info};
+use balchug_common::api::ProjectSpriteGroup;
 use balchug_common::atlas::Atlas;
 use balchug_common::atlas_builder::{build_atlas, gaps_atlas};
-use balchug_common::scenario::Scenario;
 use balchug_common::sprite::SpriteData;
 use crate::CommonError;
 
@@ -81,13 +81,13 @@ fn place_images(atlas: &Atlas, images: &[DynamicImage]) -> RgbaImage {
     atlas_image
 }
 
-pub fn optimize_atlas_items(atlas: &Atlas, scenario: &Scenario, target_width: i32) -> HashMap<usize, f32> {
+pub fn optimize_atlas_items(atlas: &Atlas, groups: &[ProjectSpriteGroup], target_width: i32) -> HashMap<usize, f32> {
     let mut items_scale = HashMap::new();
-    for animation in &scenario.sprites {
-        if let SpriteData::Image(data) = &animation.data {
-            let avg_width = animation.states.iter()
+    for group in groups {
+        if let SpriteData::Image(data) = &group.data {
+            let avg_width = group.states.iter()
                 .map(|s| s.width)
-                .fold(0.0, |acc, x| acc + x) * target_width as f32 / animation.states.len() as f32;
+                .fold(0.0, |acc, x| acc + x) * target_width as f32 / group.states.len() as f32;
             items_scale.entry(data.atlas_item_id).or_insert(Vec::new()).push(avg_width);
         }
     }

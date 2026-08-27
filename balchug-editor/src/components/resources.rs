@@ -1,7 +1,7 @@
-use dioxus::prelude::*;
-use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteImageData, SpriteTextData};
 use crate::controllers::resources::ResourcesController;
-use crate::states::project_state::SpriteGroupProperties;
+use crate::states::project_state::SpriteGroup;
+use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteImageData, SpriteTextData};
+use dioxus::prelude::*;
 
 #[component]
 pub fn ImagesBank(controller: ResourcesController) -> Element {
@@ -114,8 +114,8 @@ pub fn ImageSpriteDialog(mut controller: ResourcesController) -> Element {
                         class: "panel-body",
                         onsubmit: move |e| {
                             controller.get_image_adding_signal().set(None);
-                            let (templates, props) = parse_sprite_props(e.values(), Some(image_id));
-                            controller.add_new_sprite_animation(templates, props);
+                            let group = parse_group_props(e.values(), Some(image_id));
+                            controller.add_new_group_animation(group);
                             e.prevent_default();
                         },
                         h4 {
@@ -181,8 +181,8 @@ pub fn TextSpriteDialog(mut controller: ResourcesController) -> Element {
                         class: "panel-body",
                         onsubmit: move |e| {
                             controller.get_text_adding_open().set(false);
-                            let (templates, props) = parse_sprite_props(e.values(), None);
-                            controller.add_new_sprite_animation(templates, props);
+                            let group = parse_group_props(e.values(), None);
+                            controller.add_new_group_animation(group);
                             e.prevent_default();
                         },
                         h4 {
@@ -251,12 +251,23 @@ pub fn TextSpriteDialog(mut controller: ResourcesController) -> Element {
     }
 }
 
-fn parse_sprite_props(values: Vec<(String, FormValue)>, image_id: Option<usize>) -> (Vec<SpriteAnimation>, SpriteGroupProperties) {
-    let mut props = SpriteGroupProperties::default();
-    let mut smooth_factor = 0.5;
-    let mut data = SpriteTextData {
-        text: String::new(),
-        size: 15,
+fn parse_group_props(values: Vec<(String, FormValue)>, image_id: Option<usize>) -> SpriteGroup {
+    let mut group = SpriteGroup {
+        title: String::new(),
+        data: if let Some(image_id) = image_id {
+            SpriteData::Image(SpriteImageData{
+                atlas_item_id: image_id
+            })
+        } else {
+            SpriteData::Text(SpriteTextData {
+                text: String::new(),
+                size: 15,
+            })
+        },
+        parallax_factor: 1.0,
+        smooth_factor: 0.5,
+        max_width: 1.0,
+        states: Vec::new(),
     };
     for (name, value) in values {
         let v = match value {
@@ -264,33 +275,15 @@ fn parse_sprite_props(values: Vec<(String, FormValue)>, image_id: Option<usize>)
             FormValue::File(_) => String::new(),
         };
         match name.as_str() {
-            "title" => props.title = v,
-            "parallax" => props.parallax_factor = v.parse::<f32>().unwrap_or(1.0),
-            "smoothness" => smooth_factor = v.parse::<f32>().unwrap_or(0.5),
-            "size" => data.size = v.parse::<u8>().unwrap_or(15),
-            "text" => data.text = v,
+            "title" => group.title = v,
+            "parallax" => group.parallax_factor = v.parse::<f32>().unwrap_or(1.0),
+            "smoothness" => group.smooth_factor = v.parse::<f32>().unwrap_or(0.5),
+            "size" => if let SpriteData::Text(data) = &mut group.data {data.size = v.parse::<u8>().unwrap_or(15)},
+            "text" => if let SpriteData::Text(data) = &mut group.data {data.text = v},
             _ => {}
         }
     }
-    let animations = if let Some(image_id) = image_id {
-        vec![SpriteAnimation {
-            sprite_id: 0,
-            smooth_factor,
-            data: SpriteData::Image(SpriteImageData {atlas_item_id: image_id}),
-            states: vec![]
-        }]
-    } else {
-        data.text.split(".").map(|line| SpriteAnimation {
-            sprite_id: 0,
-            smooth_factor,
-            data: SpriteData::Text(SpriteTextData {
-                text: line.to_string(),
-                size: data.size,
-            }),
-            states: vec![]
-        }).collect()
-    };
-    (animations, props)
+    group
 }
 
 #[component]

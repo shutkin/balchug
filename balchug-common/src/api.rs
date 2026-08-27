@@ -1,7 +1,7 @@
-use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use crate::atlas::Atlas;
 use crate::scenario::Scenario;
+use crate::sprite::{SpriteData, SpriteState};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct StartProjectResponse {
@@ -42,16 +42,18 @@ impl Default for ProjectProperties {
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct ProjectSpriteGroupProperties {
-    pub main_sprite: usize,
-    pub sprites: Vec<usize>,
+pub struct ProjectSpriteGroup {
     pub title: String,
+    pub data: SpriteData,
     pub parallax_factor: f32,
+    pub smooth_factor: f32,
+    pub states: Vec<SpriteState>,
+    pub max_width: f32,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct UpdateGroupsPropsRq {
-    pub groups_properties: HashMap<usize, ProjectSpriteGroupProperties>,
+pub struct UpdateGroupsRq {
+    pub groups: Vec<ProjectSpriteGroup>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -59,6 +61,5 @@ pub struct OpenProjectResponse {
     pub project_properties: ProjectProperties,
     pub images_thumbs: Vec<String>,
     pub atlas: Atlas,
-    pub scenario: Scenario,
-    pub sprites_groups: HashMap<usize, ProjectSpriteGroupProperties>,
+    pub groups: Vec<ProjectSpriteGroup>,
 }

@@ -1,20 +1,18 @@
-use std::cell::RefCell;
-use std::collections::HashMap;
-use std::rc::Rc;
-use dioxus::prelude::*;
-use balchug_common::api::OpenProjectResponse;
-use balchug_common::scenario::Scenario;
-use balchug_engine::BalchugEngine;
-use balchug_engine::settings::Settings;
 use crate::components::workspace::Workspace;
 use crate::controllers::api::Api;
+use crate::controllers::group_utils::GroupUtils;
 use crate::controllers::project_controller::ProjectController;
 use crate::controllers::resources::ResourcesController;
-use crate::controllers::group_utils::GroupUtils;
 use crate::controllers::sprite_editor::SpriteEditController;
-use crate::controllers::storage::{LocalStorage, KEY_PROJECT_ID};
+use crate::controllers::storage::{KEY_PROJECT_ID, LocalStorage};
 use crate::controllers::updates_sender::{PinnedFuture, UpdatesHandler, UpdatesSender};
-use crate::states::project_state::{ProjectState, SpriteGroupProperties};
+use crate::states::project_state::{ProjectState, SpriteGroup};
+use balchug_common::api::OpenProjectResponse;
+use balchug_engine::BalchugEngine;
+use balchug_engine::settings::Settings;
+use dioxus::prelude::*;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 mod components;
 mod states;
@@ -27,38 +25,18 @@ fn main() {
     launch(App);
 }
 
-struct ScenarioUpdateHandler {
-    engine: Rc<RefCell<Option<BalchugEngine>>>,
-    api: Api,
-}
-
-impl UpdatesHandler<Scenario> for ScenarioUpdateHandler {
-    fn collect(&self) -> Option<Scenario> {
-        if let Some(engine) = self.engine.borrow().as_ref() {
-            let animations = engine.get_sprites_animations(None);
-            Some(Scenario { sprites: animations })
-        } else {
-            None
-        }
-    }
-    
-    fn send(&self, value: Scenario) -> PinnedFuture<'_> {
-        Box::pin(self.api.update_scenario(value))
-    }
-}
-
-struct SpritesUpdateHandler {
+struct GroupsUpdateHandler {
     project_state: ProjectState,
     api: Api,
 }
 
-impl UpdatesHandler<HashMap<usize, SpriteGroupProperties>> for SpritesUpdateHandler {
-    fn collect(&self) -> Option<HashMap<usize, SpriteGroupProperties>> {
-        Some(self.project_state.sprite_group_properties.read().clone())
+impl UpdatesHandler<Vec<SpriteGroup>> for GroupsUpdateHandler {
+    fn collect(&self) -> Option<Vec<SpriteGroup>> {
+        Some(self.project_state.groups.read().clone())
     }
 
-    fn send(&self, value: HashMap<usize, SpriteGroupProperties>) -> PinnedFuture<'_> {
-        Box::pin(self.api.update_groups_props(value))
+    fn send(&self, value: Vec<SpriteGroup>) -> PinnedFuture<'_> {
+        Box::pin(self.api.update_groups(value))
     }
 }
 
@@ -89,22 +67,14 @@ fn App() -> Element {
 
     let engine = Rc::new(RefCell::new(Option::<BalchugEngine>::None));
     let project_state = ProjectState::new();
-
-    let scenario_update_sender = UpdatesSender::new(
-        ScenarioUpdateHandler {
-            engine: engine.clone(),
-            api: api.clone(),
-        }
-    );
-    let scenario_update_signal = scenario_update_sender.start();
     
-    let sprites_update_sender = UpdatesSender::new(
-        SpritesUpdateHandler {
+    let groups_update_sender = UpdatesSender::new(
+        GroupsUpdateHandler {
             project_state: project_state.clone(),
             api: api.clone(),
         }
     );
-    let groups_update_signal = sprites_update_sender.start();
+    let groups_update_signal = groups_update_sender.start();
 
     // load font when assets url is known
     let api_clone = api.clone();
@@ -121,14 +91,13 @@ fn App() -> Element {
     let edit_controller = SpriteEditController::new(
         engine.clone(),
         project_state.clone(),
-        scenario_update_signal.clone(),
+        groups_update_signal.clone(),
     );
     let resources_controller = ResourcesController::new(
         api.clone(),
         engine.clone(),
         project_state.clone(),
         groups_update_signal.clone(),
-        scenario_update_signal.clone(),
     );
 
     // open existing project
@@ -143,28 +112,21 @@ fn App() -> Element {
             project_state_clone.properties.set(resp.project_properties.clone());
 
             if let Some(engine) = engine_clone.borrow().as_ref() {
-                let sprites = resp.scenario.sprites.clone();
-                engine.set_scenario(sprites);
                 engine.update_settings(Settings {
                     background_color: resp.project_properties.background_color,
                 });
 
-                let mut group_props_map = HashMap::new();
-                for (&group_id, props) in &resp.sprites_groups {
-                    let mut group_sprites = Vec::with_capacity(props.sprites.len() + 1);
-                    group_sprites.push(resp.scenario.sprites[props.main_sprite].clone());
-                    for &sprite_id in &props.sprites {
-                        group_sprites.push(resp.scenario.sprites[sprite_id].clone());
-                    }
-                    group_props_map.insert(group_id, SpriteGroupProperties {
-                        main_sprite_id: props.main_sprite,
-                        sprites: props.sprites.clone(),
-                        title: props.title.clone(),
-                        parallax_factor: props.parallax_factor,
-                        relations: GroupUtils::calculate_text_relation(engine, &group_sprites),
-                    });
-                }
-                project_state_clone.sprite_group_properties.replace(group_props_map);
+                let groups = resp.groups.iter().map(|group| SpriteGroup {
+                    title: group.title.clone(),
+                    data: group.data.clone(),
+                    parallax_factor: group.parallax_factor,
+                    smooth_factor: group.smooth_factor,
+                    max_width: group.max_width,
+                    states: group.states.clone(),
+                }).collect::<Vec<_>>();
+                let sprites = GroupUtils::groups_to_sprites(&groups);
+                engine.set_scenario(sprites);
+                project_state_clone.groups.replace(groups);
             }
         }
     });

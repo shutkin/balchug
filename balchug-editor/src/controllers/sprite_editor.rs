@@ -1,16 +1,15 @@
 use crate::components::timeline::{TimeLinePoint, TimeLinePoints};
-use crate::states::project_state::ProjectState;
+use crate::controllers::group_utils::GroupUtils;
+use crate::states::project_state::{ProjectState, SpriteGroup};
 use crate::states::sprite_editor::SpriteEditorState;
 use balchug_common::F32Rect;
-use balchug_common::sprite::{Easing, SpriteAnimation, SpriteData, SpriteState};
+use balchug_common::sprite::{Easing, SpriteData, SpriteState};
 use balchug_engine::{BalchugEngine, OffsetListener, STATE_OFFSET_LAG, start_engine};
 use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
-use std::collections::HashMap;
 use std::rc::Rc;
 use web_sys::{HtmlCanvasElement, Window};
-use crate::controllers::group_utils::GroupUtils;
 
 const EASING_LINEAR: &str = "Linear";
 const EASING_IN_CUBIC: &str = "In Cubic";
@@ -58,7 +57,7 @@ pub struct SpriteEditController {
     preview_offset_listener: PreviewOffsetListener,
     canvas_rect: Rc<Cell<F32Rect>>,
     project_state: ProjectState,
-    scenario_update: Rc<Cell<bool>>,
+    groups_update: Rc<Cell<bool>>,
 }
 
 impl PartialEq for SpriteEditController {
@@ -71,13 +70,13 @@ impl SpriteEditController {
     pub fn new(
         engine: Rc<RefCell<Option<BalchugEngine>>>,
         project_state: ProjectState,
-        scenario_update: Rc<Cell<bool>>,
+        groups_update: Rc<Cell<bool>>,
     ) -> Self {
         let state = Signal::new(Option::<SpriteEditorState>::None);
         let state_memo = use_memo(move || state.read().cloned());
         let ps0 = project_state.clone();
         let mut ps1 = project_state.clone();
-        let selected_group = use_memo(move || *ps0.selected_sprite_group.read());
+        let selected_group = use_memo(move || *ps0.selected_group.read());
 
         let controller = Self {
             state,
@@ -86,7 +85,7 @@ impl SpriteEditController {
             project_state,
             preview_offset_listener: PreviewOffsetListener::default(),
             canvas_rect: Rc::new(Cell::new(F32Rect::default())),
-            scenario_update,
+            groups_update,
         };
         let mut c0 = controller.clone();
         use_effect(move || {
@@ -121,45 +120,30 @@ impl SpriteEditController {
         self.state_memo.read().cloned()
     }
 
-    fn get_main_sprite_id(&self, sprite_editor_state: &SpriteEditorState) -> usize {
-        self.project_state.get_group_properties(sprite_editor_state.timeline_points.sprite_group_index).main_sprite_id
-    }
-
     /*
     Timeline
      */
     pub fn get_groups_titles(&self) -> Vec<String> {
-        (0..self.project_state.sprite_group_properties.len()).into_iter().map(|i| {
-            self.project_state.get_group_properties(i).title
-        }).collect()
+        (*self.project_state.groups.read()).iter().map(|group| group.title.clone()).collect()
     }
-
-    pub fn get_groups_main_sprite_states(&self) -> Vec<SpriteAnimation> {
-        let animations = if let Some(engine) = self.engine.borrow().as_ref() {
-            engine.get_sprites_animations(None)
-        } else {
-            Vec::new()
-        };
-        (0 .. self.project_state.sprite_group_properties.len()).into_iter().map(|group_id| {
-            let sprite_id = self.project_state.get_group_properties(group_id).main_sprite_id;
-            animations[sprite_id].clone()
-        }).collect()
+    
+    pub fn get_groups_states(&self) -> Vec<Vec<SpriteState>> {
+        (*self.project_state.groups.read()).iter().map(|group| group.states.clone()).collect()
     }
 
     pub fn set_timeline_group(&mut self, group_id: usize) {
-        let sprite_id = self.project_state.get_group_properties(group_id).main_sprite_id;
-        if let Some(engine) = self.engine.borrow().as_ref()
-            && let Some(sprite_animation) = engine.get_sprites_animations(Some(sprite_id)).first().cloned() {
-            let indices = (0..sprite_animation.states.len()).collect::<Vec<_>>();
+        if let Some(engine) = self.engine.borrow().as_ref() {
+            let group = self.project_state.get_group(group_id);
+            let indices = (0..group.states.len()).collect::<Vec<_>>();
             let cur_offset = engine.get_offset();
-            let fixed_offset = if cur_offset >= sprite_animation.states[0].offset
-                && cur_offset <= sprite_animation.states[sprite_animation.states.len() - 1].offset {
+            let fixed_offset = if cur_offset >= group.states[0].offset
+                && cur_offset <= group.states[group.states.len() - 1].offset {
                 Some(cur_offset)
             } else {
                 None
             };
             if let Some((offset, state)) = self.interpolate_selected_states(
-                engine, group_id, &sprite_animation, indices, fixed_offset) {
+                engine, group_id, &group, indices, fixed_offset) {
                 engine.scroll_to_offset(offset);
                 self.state.set(Some(state));
             }
@@ -168,10 +152,9 @@ impl SpriteEditController {
     
     pub fn set_timeline_point(&mut self, timeline_point: Option<TimeLinePoint>) {
         if let Some(point) = timeline_point {
-            let sprite_id = self.project_state.get_group_properties(point.sprite_group_index).main_sprite_id;
-            if let Some(engine) = self.engine.borrow().as_ref()
-                && let Some(sprite_animation) = engine.get_sprites_animations(Some(sprite_id)).first().cloned() {
-                if let Some((offset, new_state)) = self.handle_new_point(engine, &sprite_animation, point) {
+            let group = self.project_state.get_group(point.sprite_group_index);
+            if let Some(engine) = self.engine.borrow().as_ref() {
+                if let Some((offset, new_state)) = self.handle_new_point(engine, &group, point) {
                     engine.scroll_to_offset(offset);
                     self.state.set(Some(new_state));
                 } else {
@@ -186,16 +169,16 @@ impl SpriteEditController {
     fn handle_new_point(
         &self,
         engine: &BalchugEngine,
-        sprite_animation: &SpriteAnimation,
+        group: &SpriteGroup,
         point: TimeLinePoint,
     ) -> Option<(f32, SpriteEditorState)> {
-        let sprite_states = &sprite_animation.states;
+        let states = &group.states;
         if let Some(state) = self.state_memo.read().as_ref() {
             if state.timeline_points.sprite_group_index != point.sprite_group_index {
                 let state = self.new_editor_state(
-                    engine, sprite_animation, sprite_states[point.state_index],
+                    engine, group, states[point.state_index],
                     point.sprite_group_index, vec![point.state_index]);
-                return Some((sprite_states[point.state_index].offset, state));
+                return Some((states[point.state_index].offset, state));
             }
             let mut new_indices = state.timeline_points.states_indices.clone();
             if new_indices.contains(&point.state_index) {
@@ -207,12 +190,12 @@ impl SpriteEditController {
                 return None;
             }
             new_indices.sort();
-            self.interpolate_selected_states(engine, point.sprite_group_index, sprite_animation, new_indices, None)
+            self.interpolate_selected_states(engine, point.sprite_group_index, group, new_indices, None)
         } else {
             let state = self.new_editor_state(
-                engine, sprite_animation, sprite_states[point.state_index],
+                engine, group, states[point.state_index],
                 point.sprite_group_index, vec![point.state_index]);
-            Some((sprite_states[point.state_index].offset, state))
+            Some((states[point.state_index].offset, state))
         }
     }
     
@@ -220,20 +203,20 @@ impl SpriteEditController {
         &self,
         engine: &BalchugEngine,
         group_id: usize,
-        sprite_animation: &SpriteAnimation,
+        group: &SpriteGroup,
         indices: Vec<usize>,
         fixed_offset: Option<f32>
     ) -> Option<(f32, SpriteEditorState)> {
         let offset = fixed_offset.unwrap_or_else(|| {
             let mut sum_offset = 0_f32;
             for &i in &indices {
-                sum_offset += sprite_animation.states[i].offset;
+                sum_offset += group.states[i].offset;
             };
             sum_offset / indices.len() as f32
         });
-        if let Some(sprite_state) = engine.interpolate_state(sprite_animation, offset) {
+        if let Some(sprite_state) = engine.interpolate_state(&group.states, offset, group.smooth_factor) {
             let state = self.new_editor_state(
-                engine, sprite_animation, sprite_state, group_id, indices);
+                engine, group, sprite_state, group_id, indices);
             Some((offset, state))
         } else {
             None
@@ -243,16 +226,15 @@ impl SpriteEditController {
     fn new_editor_state(
         &self,
         engine: &BalchugEngine,
-        sprite_animation: &SpriteAnimation,
+        group: &SpriteGroup,
         sprite_state: SpriteState,
         group_id: usize,
         states_indices: Vec<usize>
     ) -> SpriteEditorState {
-        let parallax_factor = self.project_state.get_group_properties(group_id).parallax_factor;
-        let rect = Self::scale_rect(engine, sprite_animation, sprite_state, self.canvas_rect.get());
+        let rect = Self::scale_rect(engine, group, sprite_state, self.canvas_rect.get());
         SpriteEditorState {
             timeline_points: TimeLinePoints { sprite_group_index: group_id, states_indices},
-            parallax_factor,
+            parallax_factor: group.parallax_factor,
             sprite_state,
             rect,
         }
@@ -260,12 +242,12 @@ impl SpriteEditController {
 
     fn scale_rect(
         engine: &BalchugEngine,
-        sprite_animation: &SpriteAnimation,
+        group: &SpriteGroup,
         sprite_state: SpriteState,
         canvas_rect: F32Rect
     ) -> F32Rect {
-        let proportion = GroupUtils::sprite_proportion(engine, sprite_animation);
-        let width = if let SpriteData::Text(data) = &sprite_animation.data {
+        let proportion = GroupUtils::group_proportion(engine, group);
+        let width = if let SpriteData::Text(data) = &group.data {
             engine.measure_text(data, sprite_state.width).0
         } else {
             sprite_state.width
@@ -297,27 +279,28 @@ impl SpriteEditController {
      */
     pub fn drag_offset(&mut self, start_offset: f32, dy: f32, move_offset: bool) {
         if let Some(engine) = self.engine.borrow().as_ref()
-            && let Some(state) = self.state_memo.read().cloned()
-            && let Some(mut animation) = engine.get_sprites_animations(Some(self.get_main_sprite_id(&state)))
-            .into_iter().next() {
+            && let Some(state) = self.state_memo.read().cloned() {
+            let mut group = self.project_state.get_group(state.timeline_points.sprite_group_index);
             let new_offset = start_offset - dy / self.canvas_rect.get().height;
             if move_offset {
                 let offset_delta = new_offset - state.sprite_state.offset;
-                for state in &mut animation.states {
+                for state in &mut group.states {
                     state.offset += offset_delta;
                 }
                 let rect = state.rect;
                 let mut sprite_state = state.sprite_state;
                 sprite_state.offset += offset_delta;
-                self.state.set(Some(self.update_editor_state(state, sprite_state, vec![animation], engine, rect, &Vec::new())));
+                let (new_state, groups) = self.update_editor_state(state, sprite_state, group, engine, rect);
+                self.project_state.groups.replace(groups);
+                self.state.set(Some(new_state));
             } else {
-                let states = &animation.states;
+                let states = &group.states;
                 let points = state.timeline_points.states_indices.len();
                 let offset_diapason = states[state.timeline_points.states_indices[0]].offset..=states[state.timeline_points.states_indices[points - 1]].offset;
                 let bound_offset = new_offset.max(*offset_diapason.start()).min(*offset_diapason.end());
-                if let Some(new_sprite_state) = engine.interpolate_state(&animation, bound_offset) {
+                if let Some(new_sprite_state) = engine.interpolate_state(states, bound_offset, group.smooth_factor) {
                     let canvas_rect = self.canvas_rect.get();
-                    let rect = Self::scale_rect(engine, &animation, new_sprite_state, canvas_rect);
+                    let rect = Self::scale_rect(engine, &group, new_sprite_state, canvas_rect);
                     self.state.set(Some(state.change_sprite_rect(rect, new_sprite_state)));
                 }
             }
@@ -328,10 +311,9 @@ impl SpriteEditController {
     pub fn set_sprite_rect(&mut self, new_rect: F32Rect) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().cloned() {
-            let group_props = self.project_state.get_group_properties(state.timeline_points.sprite_group_index);
+            let mut group = self.project_state.get_group(state.timeline_points.sprite_group_index);
 
-            if let Some(mut main_animation) = engine.get_sprites_animations(Some(group_props.main_sprite_id)).into_iter().next()
-                && let Some(sprite_state) = engine.interpolate_state(&main_animation, state.sprite_state.offset) {
+            if let Some(sprite_state) = engine.interpolate_state(&group.states, state.sprite_state.offset, group.smooth_factor) {
                 let canvas_rect = self.canvas_rect.get();
                 let new_y = if sprite_state.from_bottom {
                     canvas_rect.y + canvas_rect.height - new_rect.y
@@ -347,63 +329,48 @@ impl SpriteEditController {
                     color: sprite_state.color,
                     easing: sprite_state.easing,
                 };
-                if let SpriteData::Text(data) = &main_animation.data {
+                if let SpriteData::Text(data) = &group.data {
                     let measured = engine.measure_text(data, 1.0).0;
                     new_sprite_state.width /= measured;
                 }
-                Self::apply_states_change(&state.timeline_points, &mut main_animation.states,
+                Self::apply_states_change(&state.timeline_points, &mut group.states,
                                           new_sprite_state, state.parallax_factor);
 
-                if group_props.sprites.is_empty() {
-                    self.state.set(Some(self.update_editor_state(state, new_sprite_state, vec![main_animation], engine, new_rect, &Vec::new())));
-                } else {
-                    let mut animations = Vec::with_capacity(group_props.sprites.len() + 1);
-                    animations.push(main_animation.clone());
-                    let all_sprites = engine.get_sprites_animations(None);
-                    for &sprite_id in &group_props.sprites {
-                        let animation = &all_sprites[sprite_id];
-                        animations.push(animation.clone());
-                    }
-                    self.state.set(Some(self.update_editor_state(state, new_sprite_state, animations, engine, new_rect, &group_props.relations)));
-                }
+                let (state, groups) = self.update_editor_state(state, new_sprite_state, group, engine, new_rect);
+                self.project_state.groups.replace(groups);
+                self.state.set(Some(state));
             }
         }
     }
 
     fn update_editor_state(
         &self,
-        cur_state: SpriteEditorState,
+        editor_state: SpriteEditorState,
         new_sprite_state: SpriteState,
-        animations: Vec<SpriteAnimation>,
+        mut group: SpriteGroup,
         engine: &BalchugEngine,
         new_rect: F32Rect,
-        relations: &[HashMap<usize, (f32, f32)>],
-    ) -> SpriteEditorState {
-        let root_animation = if animations.len() > 1 {Some(animations[0].clone())} else {None};
-        for mut animation in animations {
-            if cur_state.timeline_points.states_indices.len() == 2 && animation.states.len() == 2 {
-                let canvas_rect = self.canvas_rect.get();
-                let first_index = cur_state.timeline_points.states_indices[0];
-                let last_index = cur_state.timeline_points.states_indices[cur_state.timeline_points.states_indices.len() - 1];
-                let proportion = GroupUtils::sprite_proportion(engine, &animation);
-                let (first_state, last_state) = GroupUtils::create_init_and_final_states(
-                    &new_sprite_state,
-                    cur_state.parallax_factor,
-                    canvas_rect.width / canvas_rect.height,
-                    proportion,
-                    animation.states[first_index].from_bottom,
-                );
-                animation.states[first_index] = first_state;
-                animation.states[last_index] = last_state;
-            } else {
-                if let Some(root_animation) = root_animation.as_ref() {
-                    GroupUtils::apply_relation_to_states(&mut animation, root_animation, relations);
-                }
-            }
-            engine.set_sprite_animation_states(animation.sprite_id, animation.states);
+    ) -> (SpriteEditorState, Vec<SpriteGroup>) {
+        if editor_state.timeline_points.states_indices.len() == 2 && group.states.len() == 2 {
+            let canvas_rect = self.canvas_rect.get();
+            let first_index = editor_state.timeline_points.states_indices[0];
+            let last_index = editor_state.timeline_points.states_indices[editor_state.timeline_points.states_indices.len() - 1];
+            let proportion = GroupUtils::group_proportion(engine, &group);
+            let (first_state, last_state) = GroupUtils::create_init_and_final_states(
+                &new_sprite_state,
+                editor_state.parallax_factor,
+                canvas_rect.width / canvas_rect.height,
+                proportion,
+                group.states[first_index].from_bottom,
+            );
+            group.states[first_index] = first_state;
+            group.states[last_index] = last_state;
         }
-        self.scenario_update.set(true);
-        cur_state.change_sprite_rect(new_rect, new_sprite_state)
+        let mut groups = self.project_state.get_groups();
+        groups[editor_state.timeline_points.sprite_group_index] = group;
+        engine.set_scenario(GroupUtils::groups_to_sprites(&groups));
+        self.groups_update.set(true);
+        (editor_state.change_sprite_rect(new_rect, new_sprite_state), groups)
     }
 
     fn apply_states_change(
@@ -456,11 +423,13 @@ impl SpriteEditController {
                 "alpha" => new_sprite_state.color[3] = value.parse::<u8>().unwrap_or_default(),
                 _ => {}
             }
-            if let Some(engine) = self.engine.borrow().as_ref()
-                && let Some(mut animation) = engine.get_sprites_animations(Some(self.get_main_sprite_id(&cur_state))).first().cloned() {
-                Self::apply_states_change(&cur_state.timeline_points, &mut animation.states, new_sprite_state, cur_state.parallax_factor);
-                let new_rect = Self::scale_rect(engine, &animation, new_sprite_state, self.canvas_rect.get());
-                self.state.set(Some(self.update_editor_state(cur_state, new_sprite_state, vec![animation], engine, new_rect, &Vec::new())));
+            if let Some(engine) = self.engine.borrow().as_ref() {
+                let mut group = self.project_state.get_group(cur_state.timeline_points.sprite_group_index);
+                Self::apply_states_change(&cur_state.timeline_points, &mut group.states, new_sprite_state, cur_state.parallax_factor);
+                let new_rect = Self::scale_rect(engine, &group, new_sprite_state, self.canvas_rect.get());
+                let (state, groups) = self.update_editor_state(cur_state, new_sprite_state, group, engine, new_rect);
+                self.project_state.groups.replace(groups);
+                self.state.set(Some(state));
             }
         }
     }
@@ -481,14 +450,13 @@ impl SpriteEditController {
     }
 
     pub fn is_modify_states_possible(&self, adding: bool, removing: bool) -> bool {
-        if let Some(state) = self.state_memo.read().as_ref()
-            && let Some(engine) = self.engine.borrow().as_ref()
-            && let Some(animation) = engine.get_sprites_animations(Some(self.get_main_sprite_id(state))).first() {
-            let cur_state_index = Self::find_cur_state_index(&animation.states, &state.timeline_points, &state.sprite_state);
+        if let Some(state) = self.state_memo.read().as_ref() {
+            let group = self.project_state.get_group(state.timeline_points.sprite_group_index);
+            let cur_state_index = Self::find_cur_state_index(&group.states, &state.timeline_points, &state.sprite_state);
             if adding && cur_state_index.is_none() {
                 return true;
             }
-            if removing && cur_state_index.is_some() && animation.states.len() > 2 {
+            if removing && cur_state_index.is_some() && group.states.len() > 2 {
                 return true;
             }
         }
@@ -498,16 +466,12 @@ impl SpriteEditController {
     pub fn add_new_sprite_state(&mut self) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().as_ref() {
-            let mut animations = engine.get_sprites_animations(None);
-            let mut group_props = self.project_state.get_group_properties(state.timeline_points.sprite_group_index);
-            group_props.sprites.push(group_props.main_sprite_id);
-            for sprite_id in group_props.sprites {
-                if let Some(animation) = animations.get_mut(sprite_id) {
-                    animation.states.push(state.sprite_state);
-                    animation.states.sort_by(|a, b| a.offset.partial_cmp(&b.offset).unwrap_or(Ordering::Equal));
-                }
-            }
-            engine.set_scenario(animations);
+            let mut groups = self.project_state.get_groups();
+            groups[state.timeline_points.sprite_group_index].states.push(state.sprite_state);
+            groups[state.timeline_points.sprite_group_index].states.sort_by(|a, b| a.offset.partial_cmp(&b.offset).unwrap_or(Ordering::Equal));
+            engine.set_scenario(GroupUtils::groups_to_sprites(&groups));
+            self.project_state.groups.replace(groups);
+            self.groups_update.set(true);
             self.state.set(None);
         }
     }
@@ -515,16 +479,14 @@ impl SpriteEditController {
     pub fn remove_sprite_state(&mut self) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().as_ref() {
-            let mut animations = engine.get_sprites_animations(None);
-            let mut group_props = self.project_state.get_group_properties(state.timeline_points.sprite_group_index);
-            group_props.sprites.push(group_props.main_sprite_id);
-            for sprite_id in group_props.sprites {
-                if let Some(animation) = animations.get_mut(sprite_id)
-                    && let Some(i) = Self::find_cur_state_index(&animation.states, &state.timeline_points, &state.sprite_state) {
-                    animation.states.remove(i);
-                }
+            let mut groups = self.project_state.get_groups();
+            let group = &mut groups[state.timeline_points.sprite_group_index];
+            if let Some(i) = Self::find_cur_state_index(&group.states, &state.timeline_points, &state.sprite_state) {
+                group.states.remove(i);
             }
-            engine.set_scenario(animations);
+            engine.set_scenario(GroupUtils::groups_to_sprites(&groups));
+            self.project_state.groups.replace(groups);
+            self.groups_update.set(true);
             self.state.set(None);
         }
     }

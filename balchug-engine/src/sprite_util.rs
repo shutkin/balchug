@@ -1,4 +1,4 @@
-use balchug_common::sprite::{Easing, SpriteAnimation, SpriteState};
+use balchug_common::sprite::{Easing, SpriteState};
 use std::f32::consts::PI;
 
 #[inline]
@@ -68,10 +68,10 @@ impl SpriteUtil {
         self.interpolate_sprite_2_states(s0, s1, offset, ease)
     }
 
-    pub fn interpolate_state(&self, animation: &SpriteAnimation, offset: f32) -> Option<SpriteState> {
-        for index in 0 .. animation.states.len() - 1 {
-            if offset >= animation.states[index].offset && offset <= animation.states[index + 1].offset {
-                return Some(self.interpolate_states(&animation.states, index, offset, animation.smooth_factor));
+    pub fn interpolate_state(&self, states: &[SpriteState], offset: f32, smooth_factor: f32) -> Option<SpriteState> {
+        for index in 0 .. states.len() - 1 {
+            if offset >= states[index].offset && offset <= states[index + 1].offset {
+                return Some(self.interpolate_states(states, index, offset, smooth_factor));
             }
         }
         None

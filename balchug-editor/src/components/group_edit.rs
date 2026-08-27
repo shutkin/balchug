@@ -1,17 +1,17 @@
 use dioxus::prelude::*;
-use balchug_common::sprite::{SpriteAnimation, SpriteData};
+use balchug_common::sprite::SpriteData;
 use crate::controllers::resources::ResourcesController;
-use crate::states::project_state::SpriteGroupProperties;
+use crate::states::project_state::SpriteGroup;
 
 #[component]
-pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
+pub fn GroupEditDialog(controller: ResourcesController) -> Element {
     let mut c0 = controller.clone();
     let c1 = controller.clone();
 
-    if let Some(sprite_id) = *controller.get_edit_sprite_signal().read()
-        && let Some((props, animation)) = controller.get_sprite_props(sprite_id) {
-        let mut parallax = use_signal(move || props.parallax_factor);
-        let mut smoothness = use_signal(move || animation.smooth_factor);
+    if let Some(group_id) = *controller.get_edit_group_signal().read() {
+        let group = controller.get_group(group_id);
+        let mut parallax = use_signal(move || group.parallax_factor);
+        let mut smoothness = use_signal(move || group.smooth_factor);
 
         rsx! {
             div {
@@ -24,17 +24,16 @@ pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
                         id: "sprite_dialog_body",
                         class: "panel-body",
                         onsubmit: {
-                            let mut props = props.clone();
-                            let mut animation = animation.clone();
+                            let mut group = group.clone();
                             move |e| {
-                                parse_values(e.values(), &mut animation, &mut props);
-                                c0.set_sprite_props(sprite_id, &props, &animation);
-                                c0.get_edit_sprite_signal().set(None);
+                                parse_values(e.values(), &mut group);
+                                c0.update_group(group_id, &group);
+                                c0.get_edit_group_signal().set(None);
                                 e.prevent_default();
                             }
                         },
                         h4 {
-                            "Edit sprite {props.title}"
+                            "Edit sprite {group.title}"
                         }
                         label {
                             "Title",
@@ -42,10 +41,10 @@ pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
                                 id: "sprite_dialog_title",
                                 name: "title",
                                 r#type: "text",
-                                value: "{props.title}",
+                                value: "{group.title}",
                             }
                         }
-                        if let SpriteData::Text(data) = animation.data.clone() {
+                        if let SpriteData::Text(data) = group.data.clone() {
                             label {
                                 "Text",
                                 input {
@@ -117,7 +116,7 @@ pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
                                 class: "btn btn-secondary",
                                 formmethod: "dialog",
                                 onclick: move |_| {
-                                    c1.get_edit_sprite_signal().set(None);
+                                    c1.get_edit_group_signal().set(None);
                                 },
                                 "Cancel"
                             }
@@ -136,20 +135,20 @@ pub fn SpritePropsDialog(controller: ResourcesController) -> Element {
     }
 }
 
-fn parse_values(values: Vec<(String, FormValue)>, animation: &mut SpriteAnimation, props: &mut SpriteGroupProperties) {
+fn parse_values(values: Vec<(String, FormValue)>, group: &mut SpriteGroup) {
     for (name, value) in values {
         let v = match value {
             FormValue::Text(txt) => txt,
             FormValue::File(_) => String::new(),
         };
         match name.as_str() {
-            "title" => props.title = v,
-            "parallax" => props.parallax_factor = v.parse::<f32>().unwrap_or(1.0),
-            "smoothness" => animation.smooth_factor = v.parse::<f32>().unwrap_or(0.5),
-            "size" => if let SpriteData::Text(data) = &mut animation.data {
+            "title" => group.title = v,
+            "parallax" => group.parallax_factor = v.parse::<f32>().unwrap_or(1.0),
+            "smoothness" => group.smooth_factor = v.parse::<f32>().unwrap_or(0.5),
+            "size" => if let SpriteData::Text(data) = &mut group.data {
                 data.size = v.parse::<u8>().unwrap_or(15)
             },
-            "text" => if let SpriteData::Text(data) = &mut animation.data {
+            "text" => if let SpriteData::Text(data) = &mut group.data {
                 data.text = v
             },
             _ => {}
