@@ -104,9 +104,11 @@ fn App() -> Element {
     let mut resources_clone = resources_controller.clone();
     let mut project_state_clone = project_state.clone();
     let engine_clone = engine.clone();
+    let c0 = edit_controller.clone();
     use_effect(move || {
-        if let Some(resp) = open_project_response.read().as_ref() {
-            info!("{resp:?}");
+        if *c0.get_ready_signal().read() &&
+            let Some(resp) = open_project_response.read().as_ref() {
+            info!("Open project");
             resources_clone.update_image_resources(resp.images_thumbs.clone(), resp.atlas.clone());
 
             project_state_clone.properties.set(resp.project_properties.clone());
@@ -124,7 +126,7 @@ fn App() -> Element {
                     max_width: group.max_width,
                     states: group.states.clone(),
                 }).collect::<Vec<_>>();
-                let sprites = GroupUtils::groups_to_sprites(&groups);
+                let sprites = GroupUtils::groups_to_sprites(&groups, engine);
                 engine.set_scenario(sprites);
                 project_state_clone.groups.replace(groups);
             }

@@ -71,10 +71,10 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
                     if let SpriteData::Text(data) = group.data.clone() {
                         label {
                             "Text",
-                            input {
+                            textarea {
                                 id: "sprite_dialog_title",
                                 name: "text",
-                                r#type: "text",
+                                rows: 4,
                                 value: "{data.text}"
                             }
                         }

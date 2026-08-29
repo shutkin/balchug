@@ -91,7 +91,7 @@ impl ResourcesController {
     pub fn update_group(&mut self, group_id: usize, group: &SpriteGroup) {
         self.project_state.update_group(group_id, group);
         if let Some(engine) = self.engine.borrow().as_ref() {
-            engine.set_scenario(GroupUtils::groups_to_sprites(&self.project_state.get_groups()));
+            engine.set_scenario(GroupUtils::groups_to_sprites(&self.project_state.get_groups(), engine));
         }
         self.groups_update_signal.set(true);
     }
@@ -113,12 +113,12 @@ impl ResourcesController {
                 easing: Easing::default(),
             };
 
-            let proportion = GroupUtils::group_proportion(engine, &template);
+            let (proportion_x, proportion_y) = GroupUtils::group_proportion(engine, &template);
             let (first, last) = GroupUtils::create_init_and_final_states(
                 &cur_state,
                 template.parallax_factor,
                 aspect_ratio,
-                proportion,
+                proportion_x / proportion_y,
                 true,
             );
             let mut group = template.clone();
@@ -126,7 +126,7 @@ impl ResourcesController {
 
             self.project_state.add_group(group);
             let groups = self.project_state.get_groups();
-            engine.set_scenario(GroupUtils::groups_to_sprites(&groups));
+            engine.set_scenario(GroupUtils::groups_to_sprites(&groups, engine));
 
             let new_group_id = groups.len() - 1;
             self.project_state.select_group(new_group_id);

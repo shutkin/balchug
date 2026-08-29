@@ -176,7 +176,7 @@ pub fn TextLine(controller: ResourcesController) -> Element {
                 onclick: move |_| {
                     c0.get_text_adding_open().set(true);
                 },
-                "Add Text Line"
+                "Add Text Paragraph"
             }
         }
     }

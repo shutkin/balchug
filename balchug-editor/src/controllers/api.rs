@@ -109,12 +109,10 @@ impl Api {
             groups,
         };
         match self.http_client.post(url).json(&data).send().await {
-            Ok(_) => {
-                info!("Sprites properties updated");
-            }
+            Ok(_) => {},
             Err(err) => {
                 Self::handle_reqwest_error("Failed to update sprites properties", err);
-            }
+            },
         }
     }
     

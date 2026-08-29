@@ -49,6 +49,9 @@ impl TextUtil {
 
 pub fn measure_text_line(text: &str, size: u8, scale: f32, font: &FontData) -> (f32, f32) {
     let scale = scale * size as f32 * TEXT_SIZE_FACTOR / font.height;
+    if text == " " {
+        return (font.space_width * scale, (font.height + font.line_gap) * scale)
+    }
     let mut cx = 0.0;
     for c in text.chars() {
         if c.is_control() {

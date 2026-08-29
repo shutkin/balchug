@@ -92,14 +92,16 @@ impl ProjectController {
     }
 
     pub fn download_distributive(&self) {
-        let api_clone = self.api.clone();
-        let sprites = GroupUtils::groups_to_sprites(&self.state.get_groups());
-        use_future(move || {
-            let api_clone = api_clone.clone();
-            let sprites = sprites.clone();
-            async move {
-                api_clone.download_dist(Scenario {sprites}).await
-            }
-        });
+        if let Some(engine) = self.engine.borrow().as_ref() {
+            let api_clone = self.api.clone();
+            let sprites = GroupUtils::groups_to_sprites(&self.state.get_groups(), engine);
+            use_future(move || {
+                let api_clone = api_clone.clone();
+                let sprites = sprites.clone();
+                async move {
+                    api_clone.download_dist(Scenario {sprites}).await
+                }
+            });
+        }
     }
 }

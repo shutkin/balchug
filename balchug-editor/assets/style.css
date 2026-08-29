@@ -321,6 +321,7 @@ body {
 /* Generic Form Input Styles */
 input[type="text"],
 input[type="number"],
+textarea,
 select {
     width: 100%;
     background-color: var(--bg-darker);
@@ -331,6 +332,10 @@ select {
     color: var(--text-main);
     margin-top: 6px;
     outline: none;
+}
+
+textarea {
+    resize: vertical;
 }
 
 input[type="text"]:focus,

@@ -1,6 +1,6 @@
 use ab_glyph::{Font, FontRef, Glyph, ScaleFont};
-use std::collections::HashMap;
 use balchug_common::atlas::{FontData, FontGlyph};
+use std::collections::HashMap;
 
 const PADDING: u16 = 4;
 

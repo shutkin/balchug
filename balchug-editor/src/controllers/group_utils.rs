@@ -1,7 +1,6 @@
 use crate::states::project_state::SpriteGroup;
-use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState};
+use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState, SpriteTextData};
 use balchug_engine::{BalchugEngine, TEXT_SIZE_FACTOR};
-use std::collections::HashMap;
 
 pub struct GroupUtils;
 
@@ -43,62 +42,96 @@ impl GroupUtils {
         (first_state, last_state)
     }
 
-    pub fn groups_to_sprites(groups: &[SpriteGroup]) -> Vec<SpriteAnimation> {
+    pub fn groups_to_sprites(groups: &[SpriteGroup], engine: &BalchugEngine) -> Vec<SpriteAnimation> {
         let mut sprites = Vec::new();
         for group in groups {
-            let sprite = SpriteAnimation {
-                sprite_id: sprites.len(),
-                data: group.data.clone(),
-                states: group.states.clone(),
-                smooth_factor: group.smooth_factor,
+            let groups_sprites = match group.data.clone() {
+                SpriteData::Image(data) => vec![SpriteAnimation {
+                    sprite_id: sprites.len(),
+                    data: SpriteData::Image(data),
+                    states: group.states.clone(),
+                    smooth_factor: group.smooth_factor,
+                }],
+                SpriteData::Text(data) => {
+                    let lines = Self::split_text(&data, group, engine);
+                    Self::create_text_sprites(lines, &data, group, sprites.len())
+                }
             };
-            sprites.push(sprite);
+            sprites.extend(groups_sprites);
         }
         sprites
     }
-    
-    pub fn apply_relation_to_states(animation: &mut SpriteAnimation, root_sprite: &SpriteAnimation, relations: &[HashMap<usize, (f32, f32)>]) {
-        if animation.sprite_id == root_sprite.sprite_id {
-            return;
-        }
-        for (i, root_state) in root_sprite.states.iter().enumerate() {
-            if let Some(state) = animation.states.get_mut(i)
-                && let Some(state_relations) = relations.get(i)
-                && let Some(relation) = state_relations.get(&animation.sprite_id) {
-                state.x = root_state.x + relation.0;
-                state.y = root_state.y + relation.1;
-            }
-        }
-    }
 
-    pub fn group_proportion(engine: &BalchugEngine, group: &SpriteGroup) -> f32 {
+    pub fn group_proportion(engine: &BalchugEngine, group: &SpriteGroup) -> (f32, f32) {
         match &group.data {
             SpriteData::Image(image_data) => {
                 engine.get_atlas_item(image_data.atlas_item_id).map(|item| {
-                    item.origin_width as f32 / item.origin_height as f32
-                }).unwrap_or(1.0)
+                    (item.origin_width as f32, item.origin_height as f32)
+                }).unwrap_or((1.0, 1.0))
             }
             SpriteData::Text(text_data) => {
-                1.0 / (text_data.size as f32 * TEXT_SIZE_FACTOR)
+                let lines = Self::split_text(text_data, group, engine);
+                let max_width = lines.iter().map(|(_, width)| *width).reduce(f32::max).unwrap_or(1.0);
+                (max_width, lines.len() as f32 * text_data.size as f32 * TEXT_SIZE_FACTOR)
             }
         }
     }
 
-    /*pub fn calculate_text_relation(
-        engine: &BalchugEngine,
-        sprites: &[SpriteAnimation],
-    ) -> Vec<HashMap<usize, (f32, f32)>> {
-        let mut result = Vec::with_capacity(sprites[0].states.len());
-        for state in &sprites[0].states {
-            let mut relations = HashMap::with_capacity(sprites.len());
-            let mut rel_y = 0.0;
-            for sprite in sprites {
-                let proportion = Self::group_proportion(engine, sprite);
-                relations.insert(sprite.sprite_id, (0.0, rel_y));
-                rel_y += state.width / proportion;
+    fn split_text(data: &SpriteTextData, group: &SpriteGroup, engine: &BalchugEngine) -> Vec<(String, f32)> {
+        let space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size: data.size }, 1.0).0;
+        let words = data.text.split(' ')
+            .filter(|word| !word.is_empty())
+            .map(|word| {
+                let word_data = SpriteTextData { text: word.to_string(), size: data.size };
+                let width = engine.measure_text(&word_data, 1.0).0;
+                (word.to_string(), width)
+            })
+            .collect::<Vec<_>>();
+        let mut lines = Vec::new();
+        let mut line = String::new();
+        let mut line_width = 0.0;
+        for (word, word_width) in words {
+            if line_width + space_width + word_width > group.max_width {
+                lines.push((line.clone(), line_width));
+                line = String::new();
+                line_width = 0.0;
             }
-            result.push(relations);
+            if !line.is_empty() {
+                line.push(' ');
+                line_width += space_width;
+            }
+            line.push_str(&word);
+            line_width += word_width;
         }
-        result
-    }*/
+        if !line.is_empty() {
+            lines.push((line, line_width));
+        }
+        lines
+    }
+    
+    fn create_text_sprites(lines: Vec<(String, f32)>, data: &SpriteTextData, group: &SpriteGroup, start_id: usize) -> Vec<SpriteAnimation> {
+        lines.into_iter().enumerate()
+            .map(|(i, (line, _))| {
+                let dy = i as f32 * data.size as f32 * TEXT_SIZE_FACTOR;
+                SpriteAnimation {
+                    sprite_id: start_id + i,
+                    data: SpriteData::Text(SpriteTextData {text: line, size: data.size}),
+                    states: Self::translate_states(&group.states, dy),
+                    smooth_factor: group.smooth_factor,
+                }
+            })
+            .collect()
+    }
+
+    fn translate_states(states: &[SpriteState], dy: f32) -> Vec<SpriteState> {
+        states.iter().map(|state| {
+            let mut state = *state;
+            if state.from_bottom {
+                state.y -= state.width * dy;
+            } else {
+                state.y += state.width * dy;
+            }
+            state
+        }).collect()
+    }
 }

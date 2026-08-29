@@ -61,6 +61,7 @@ pub struct SpriteEditController {
     groups_update: Rc<Cell<bool>>,
     input_value: Store<(String, String)>,
     input_value_future: Store<Option<UseFuture>>,
+    font_is_ready: Signal<bool>,
 }
 
 impl PartialEq for SpriteEditController {
@@ -91,6 +92,7 @@ impl SpriteEditController {
             groups_update,
             input_value: Store::new((String::default(), String::default())),
             input_value_future: Store::new(None),
+            font_is_ready: Signal::new(false),
         };
         let mut c0 = controller.clone();
         use_effect(move || {
@@ -104,9 +106,18 @@ impl SpriteEditController {
     }
 
     pub fn start(&self, window: Window, canvas: HtmlCanvasElement) {
-        let balchug_engine = start_engine(window, canvas, Default::default());
+        let mut ready_signal = self.font_is_ready;
+        let listener = move || {
+            info!("Font data is ready");
+            ready_signal.set(true);
+        };
+        let balchug_engine = start_engine(window, canvas, Default::default(), Some(Box::new(listener)));
         balchug_engine.set_offset_listener(Box::new(self.preview_offset_listener.clone()));
         self.engine.replace(Some(balchug_engine));
+    }
+
+    pub fn get_ready_signal(&self) -> Signal<bool> {
+        self.font_is_ready
     }
 
     pub fn resize(&mut self) {
@@ -251,9 +262,9 @@ impl SpriteEditController {
         sprite_state: SpriteState,
         canvas_rect: F32Rect
     ) -> F32Rect {
-        let proportion = GroupUtils::group_proportion(engine, group);
-        let width = if let SpriteData::Text(data) = &group.data {
-            engine.measure_text(data, sprite_state.width).0
+        let (proportion_x, proportion_y) = GroupUtils::group_proportion(engine, group);
+        let width = if let SpriteData::Text(_) = &group.data {
+            proportion_x
         } else {
             sprite_state.width
         };
@@ -267,7 +278,7 @@ impl SpriteEditController {
             x: sprite_state.x * canvas_rect.width + canvas_rect.x,
             y,
             width: width * canvas_rect.width,
-            height: sprite_state.width * canvas_rect.width / proportion,
+            height: sprite_state.width * canvas_rect.width * proportion_y / proportion_x,
         }
     }
 
@@ -334,9 +345,9 @@ impl SpriteEditController {
                     color: sprite_state.color,
                     easing: sprite_state.easing,
                 };
-                if let SpriteData::Text(data) = &group.data {
-                    let measured = engine.measure_text(data, 1.0).0;
-                    new_sprite_state.width /= measured;
+                if let SpriteData::Text(_) = &group.data {
+                    let (proportion_x, _) = GroupUtils::group_proportion(engine, &group);
+                    new_sprite_state.width /= proportion_x;
                 }
                 Self::apply_states_change(&state.timeline_points, &mut group.states,
                                           new_sprite_state, state.parallax_factor);
@@ -360,12 +371,12 @@ impl SpriteEditController {
             let canvas_rect = self.canvas_rect.get();
             let first_index = editor_state.timeline_points.states_indices[0];
             let last_index = editor_state.timeline_points.states_indices[editor_state.timeline_points.states_indices.len() - 1];
-            let proportion = GroupUtils::group_proportion(engine, &group);
+            let (proportion_x, proportion_y) = GroupUtils::group_proportion(engine, &group);
             let (first_state, last_state) = GroupUtils::create_init_and_final_states(
                 &new_sprite_state,
                 editor_state.parallax_factor,
                 canvas_rect.width / canvas_rect.height,
-                proportion,
+                proportion_x / proportion_y,
                 group.states[first_index].from_bottom,
             );
             group.states[first_index] = first_state;
@@ -373,7 +384,7 @@ impl SpriteEditController {
         }
         let mut groups = self.project_state.get_groups();
         groups[editor_state.timeline_points.sprite_group_index] = group;
-        engine.set_scenario(GroupUtils::groups_to_sprites(&groups));
+        engine.set_scenario(GroupUtils::groups_to_sprites(&groups, engine));
         self.groups_update.set(true);
         (editor_state.change_sprite_rect(new_rect, new_sprite_state), groups)
     }
@@ -492,7 +503,7 @@ impl SpriteEditController {
             let mut groups = self.project_state.get_groups();
             groups[state.timeline_points.sprite_group_index].states.push(state.sprite_state);
             groups[state.timeline_points.sprite_group_index].states.sort_by(|a, b| a.offset.partial_cmp(&b.offset).unwrap_or(Ordering::Equal));
-            engine.set_scenario(GroupUtils::groups_to_sprites(&groups));
+            engine.set_scenario(GroupUtils::groups_to_sprites(&groups, engine));
             self.project_state.groups.replace(groups);
             self.groups_update.set(true);
             self.state.set(None);
@@ -507,7 +518,7 @@ impl SpriteEditController {
             if let Some(i) = Self::find_cur_state_index(&group.states, &state.timeline_points, &state.sprite_state) {
                 group.states.remove(i);
             }
-            engine.set_scenario(GroupUtils::groups_to_sprites(&groups));
+            engine.set_scenario(GroupUtils::groups_to_sprites(&groups, engine));
             self.project_state.groups.replace(groups);
             self.groups_update.set(true);
             self.state.set(None);

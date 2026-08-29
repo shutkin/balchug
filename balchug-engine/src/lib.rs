@@ -1,22 +1,23 @@
-use std::cell::{Cell, RefCell};
-use std::collections::HashMap;
-use std::rc::Rc;
-use log::{error, info};
-use wasm_bindgen::closure::Closure;
-use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{Window, HtmlCanvasElement, HtmlImageElement, Request, WebGl2RenderingContext, Response, AddEventListenerOptions, WheelEvent, TouchEvent, MouseEvent, window};
-use balchug_common::atlas::{Atlas, AtlasItem, FontData};
-use balchug_common::F32Rect;
-use balchug_common::scenario::Scenario;
-use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteData, SpriteState, SpriteTextData};
 use crate::font::font_builder::build_font;
 use crate::fps::FpsCounter;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
 use crate::scenario::{scenario_letters, scenario_max_offset, scenario_text_size};
 use crate::settings::Settings;
-use crate::sprite_util::{scale_sprite_state, SpriteUtil};
-use crate::text_util::{measure_text_line, TextUtil};
+use crate::sprite_util::{SpriteUtil, scale_sprite_state};
+use crate::text_util::{TextUtil, measure_text_line};
+use balchug_common::F32Rect;
+use balchug_common::atlas::{Atlas, AtlasItem, FontData};
+use balchug_common::scenario::Scenario;
+use balchug_common::sprite::{Sprite, SpriteAnimation, SpriteData, SpriteState, SpriteTextData};
+use log::{error, info};
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
+use wasm_bindgen::closure::Closure;
+use wasm_bindgen::{JsCast, JsValue};
+use web_sys::{AddEventListenerOptions, HtmlCanvasElement, HtmlImageElement, MouseEvent, Request, Response, TouchEvent, WebGl2RenderingContext, WheelEvent, Window, window};
+use crate::font::glyphs_render::prepare_glyphs;
 
 mod gl;
 mod inertia;
@@ -34,6 +35,8 @@ pub trait OffsetListener {
     fn offset_change(&mut self, offset: f32);
 }
 
+type FontListener = Box<dyn FnMut()>;
+
 #[derive(Clone)]
 struct AppContext {
     force_rerender: Rc<Cell<bool>>,
@@ -44,6 +47,7 @@ struct AppContext {
     font_atlas_items: Rc<RefCell<HashMap<usize, AtlasItem>>>,
     font: Rc<RefCell<FontData>>,
     font_bytes: Rc<RefCell<Vec<u8>>>,
+    font_listener: Rc<Cell<Option<FontListener>>>,
     scenario: Rc<RefCell<Scenario>>,
     canvas_width: Rc<Cell<f32>>,
     sprite_util: Rc<Cell<SpriteUtil>>,
@@ -56,7 +60,7 @@ struct AppContext {
 }
 
 impl AppContext {
-    fn new(canvas_width: f32, canvas_height: f32) -> Self {
+    fn new(canvas_width: f32, canvas_height: f32, font_listener: Option<FontListener>) -> Self {
         AppContext {
             force_rerender: Rc::new(Cell::new(false)),
             scroll: Rc::new(RefCell::new(Inertia::new(0.0))),
@@ -66,6 +70,7 @@ impl AppContext {
             font_atlas_items: Rc::new(RefCell::new(HashMap::default())),
             scenario: Rc::new(RefCell::new(Scenario::default())),
             font: Rc::new(RefCell::new(FontData::default())),
+            font_listener: Rc::new(Cell::new(font_listener)),
             font_bytes: Rc::new(RefCell::new(Vec::new())),
             canvas_width: Rc::new(Cell::new(canvas_width)),
             sprite_util: Rc::new(Cell::new(SpriteUtil::new(canvas_width, canvas_height))),
@@ -176,7 +181,33 @@ impl BalchugEngine {
     }
 
     pub fn measure_text(&self, data: &SpriteTextData, scale: f32) -> (f32, f32) {
-        measure_text_line(&data.text, data.size, scale, &self.context.font.borrow())
+        if data.text == " " {
+            return measure_text_line(&data.text, data.size, scale, &self.context.font.borrow());
+        }
+
+        let mut letters = scenario_letters(&self.context.scenario.borrow());
+        let new_letters = data.text.chars()
+            .filter(|c| !letters.contains(&c.to_string()))
+            .collect::<String>();
+        letters.push_str(&new_letters);
+
+        let new_font_data = if !new_letters.is_empty() {
+            let bytes = self.context.font_bytes.borrow();
+            let font_size = data.size as f32 * TEXT_SIZE_FACTOR;
+            if let Ok((font_data, _)) = prepare_glyphs(&letters, &bytes, font_size) {
+                Some(font_data)
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+
+        if let Some(font_data) = new_font_data {
+            measure_text_line(&data.text, data.size, scale, &font_data)
+        } else {
+            measure_text_line(&data.text, data.size, scale, &self.context.font.borrow())
+        }
     }
 
     pub fn update_settings(&self, settings: Settings) {
@@ -265,7 +296,7 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
     }
 }
 
-pub fn start_engine(window: Window, canvas: HtmlCanvasElement, settings: Settings) -> BalchugEngine {
+pub fn start_engine(window: Window, canvas: HtmlCanvasElement, settings: Settings, font_listener: Option<FontListener>) -> BalchugEngine {
     wasm_logger::init(wasm_logger::Config::default());
 
     let pixel_ratio = window.device_pixel_ratio().max(2.0);
@@ -275,7 +306,7 @@ pub fn start_engine(window: Window, canvas: HtmlCanvasElement, settings: Setting
     let (width, height) = (canvas.width(), canvas.height());
     renderer.set_sizes(width as f32, height as f32);
 
-    let ctx = AppContext::new(width as f32, height as f32);
+    let ctx = AppContext::new(width as f32, height as f32, font_listener);
 
     let ctx_clone = ctx.clone();
     let renderer_clone = renderer.clone();
@@ -485,16 +516,27 @@ fn load_font(ctx: &AppContext, renderer: &GlRenderer, font_url: &str) {
 
 fn rebuild_font(ctx: &AppContext, renderer: &GlRenderer) {
     let bytes = ctx.font_bytes.borrow();
+    if bytes.is_empty() {
+        return;
+    }
+
     let letters = scenario_letters(&ctx.scenario.borrow());
-    if !bytes.is_empty() && !letters.is_empty() {
+    let known_letters = ctx.font.borrow().glyphs.keys().cloned().collect::<HashSet<_>>();
+    let listener = ctx.font_listener.take();
+    if listener.is_some() || letters.chars().any(|c| c != ' ' && !known_letters.contains(&c)) {
         let font_size = scenario_text_size(&ctx.scenario.borrow(), ctx.canvas_width.get());
         info!("Font size: {font_size}");
         if let Some(res) = build_font(&letters, &bytes, font_size) {
-            renderer.set_font_texture(res.atlas.width, res.atlas.height, &res.data);
             ctx.font.replace(res.font_data);
-            ctx.font_atlas_items.replace(res.atlas.items);
-            ctx.txt_texture_ready.replace(true);
-            ctx.force_rerender.set(true);
+            if !letters.is_empty() {
+                renderer.set_font_texture(res.atlas.width, res.atlas.height, &res.data);
+                ctx.font_atlas_items.replace(res.atlas.items);
+                ctx.txt_texture_ready.replace(true);
+                ctx.force_rerender.set(true);
+            }
         }
+    }
+    if let Some(mut listener) = listener {
+        listener();
     }
 }

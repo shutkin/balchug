@@ -21,7 +21,8 @@ pub fn scenario_text_size(scenario: &Scenario, canvas_size: f32) -> f32 {
         }
     }
     if sizes.is_empty() {
-        0.0
+        // default size is 15
+        15.0 * TEXT_SIZE_FACTOR * canvas_size
     } else {
         sizes.sort_unstable_by(|a, b| a.partial_cmp(b).unwrap());
         let mid = sizes.len() / 2;
