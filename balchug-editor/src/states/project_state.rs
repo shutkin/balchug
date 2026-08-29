@@ -1,8 +1,8 @@
-use balchug_common::sprite::{SpriteData, SpriteState};
+use balchug_common::sprite::{SpriteData, SpriteImageData, SpriteState, SpriteTextData};
 use dioxus::prelude::*;
 use balchug_common::api::ProjectProperties;
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 pub struct SpriteGroup {
     pub title: String,
     pub data: SpriteData,
@@ -10,6 +10,30 @@ pub struct SpriteGroup {
     pub smooth_factor: f32,
     pub states: Vec<SpriteState>,
     pub max_width: f32,
+}
+
+impl SpriteGroup {
+    pub fn new_text() -> Self {
+        Self {
+            title: String::new(),
+            data: SpriteData::Text(SpriteTextData {text: String::new(), size: 15}),
+            parallax_factor: 1.0,
+            smooth_factor: 0.5,
+            max_width: 1.0,
+            states: Vec::new(),
+        }
+    }
+
+    pub fn new_image(image_id: usize) -> Self {
+        Self {
+            title: String::new(),
+            data: SpriteData::Image(SpriteImageData {atlas_item_id: image_id}),
+            parallax_factor: 1.0,
+            smooth_factor: 0.5,
+            max_width: 1.0,
+            states: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone)]

@@ -1,125 +1,150 @@
-use dioxus::prelude::*;
-use balchug_common::sprite::SpriteData;
 use crate::controllers::resources::ResourcesController;
 use crate::states::project_state::SpriteGroup;
+use balchug_common::sprite::SpriteData;
+use dioxus::prelude::*;
 
 #[component]
 pub fn GroupEditDialog(controller: ResourcesController) -> Element {
+    if let Some(group_id) = *controller.get_edit_group_signal().read() {
+        let group = controller.get_group(group_id);
+        rsx! {
+            GroupPropsEdit {
+                group,
+                group_id: Some(group_id),
+                controller,
+            }
+        }
+    } else {
+        rsx! {}
+    }
+}
+
+#[component]
+pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: ResourcesController) -> Element {
     let mut c0 = controller.clone();
     let c1 = controller.clone();
 
-    if let Some(group_id) = *controller.get_edit_group_signal().read() {
-        let group = controller.get_group(group_id);
-        let mut parallax = use_signal(move || group.parallax_factor);
-        let mut smoothness = use_signal(move || group.smooth_factor);
+    let mut parallax = use_signal(move || group.parallax_factor);
+    let mut smoothness = use_signal(move || group.smooth_factor);
 
-        rsx! {
+    rsx! {
+        div {
+            id: "sprite_dialog_overlay",
+            class: "modal-overlay",
             div {
-                id: "sprite_dialog_overlay",
-                class: "modal-overlay",
-                div {
-                    id: "sprite_dialog_box",
-                    class: "modal-box",
-                    form {
-                        id: "sprite_dialog_body",
-                        class: "panel-body",
-                        onsubmit: {
-                            let mut group = group.clone();
-                            move |e| {
-                                parse_values(e.values(), &mut group);
+                id: "sprite_dialog_box",
+                class: "modal-box",
+                form {
+                    id: "sprite_dialog_body",
+                    class: "panel-body",
+                    onsubmit: {
+                        let mut group = group.clone();
+                        move |e| {
+                            parse_values(e.values(), &mut group);
+                            if let Some(group_id) = group_id {
                                 c0.update_group(group_id, &group);
-                                c0.get_edit_group_signal().set(None);
-                                e.prevent_default();
+                            } else {
+                                c0.add_new_group_animation(&group);
                             }
-                        },
-                        h4 {
-                            "Edit sprite {group.title}"
+                            c0.get_image_adding_signal().set(None);
+                            c0.get_text_adding_open().set(false);
+                            c0.get_edit_group_signal().set(None);
+                            e.prevent_default();
                         }
+                    },
+                    h4 {
+                        if group_id.is_some() {
+                            "Edit object '{group.title}'"
+                        } else {
+                            "Add object"
+                        }
+                    }
+                    label {
+                        "Title",
+                        input {
+                            id: "sprite_dialog_title",
+                            name: "title",
+                            r#type: "text",
+                            value: "{group.title}",
+                        }
+                    }
+                    if let SpriteData::Text(data) = group.data.clone() {
                         label {
-                            "Title",
+                            "Text",
                             input {
                                 id: "sprite_dialog_title",
-                                name: "title",
+                                name: "text",
                                 r#type: "text",
-                                value: "{group.title}",
-                            }
-                        }
-                        if let SpriteData::Text(data) = group.data.clone() {
-                            label {
-                                "Text",
-                                input {
-                                    id: "sprite_dialog_title",
-                                    name: "text",
-                                    r#type: "text",
-                                    value: "{data.text}"
-                                }
-                            }
-                            label {
-                                "Size"
-                                select {
-                                    id: "text_size_select",
-                                    name: "size",
-                                    for i in 15..=30 {
-                                        option {
-                                            selected: i == data.size,
-                                            "{i}"
-                                        }
-                                    }
-                                }
+                                value: "{data.text}"
                             }
                         }
                         label {
-                            "Parallax Factor: {parallax.read()}",
-                            input {
-                                id: "sprite_dialog_parallax",
-                                name: "parallax",
-                                r#type: "range",
-                                min: "0.5",
-                                max: "2",
-                                step: "0.1",
-                                value: "{parallax.read()}",
-                                oninput: move |event| {
-                                    if let Ok(v) = event.value().parse::<f32>() {
-                                        parallax.set(v);
+                            "Size"
+                            select {
+                                id: "text_size_select",
+                                name: "size",
+                                for i in 15..=30 {
+                                    option {
+                                        selected: i == data.size,
+                                        "{i}"
                                     }
                                 }
                             }
                         }
-                        label {
-                            "States Transition Smoothness: {smoothness.read()}",
-                            input {
-                                id: "sprite_dialog_smoothness",
-                                name: "smoothness",
-                                r#type: "range",
-                                min: "0.0",
-                                max: "0.75",
-                                step: "0.05",
-                                value: "{smoothness.read()}",
-                                oninput: move |event| {
-                                    if let Ok(v) = event.value().parse::<f32>() {
-                                        smoothness.set(v);
-                                    }
+                    }
+                    label {
+                        "Parallax Factor: {parallax.read()}",
+                        input {
+                            id: "sprite_dialog_parallax",
+                            name: "parallax",
+                            r#type: "range",
+                            min: "0.5",
+                            max: "2",
+                            step: "0.1",
+                            value: "{parallax.read()}",
+                            oninput: move |event| {
+                                if let Ok(v) = event.value().parse::<f32>() {
+                                    parallax.set(v);
                                 }
                             }
                         }
-                        div {
-                            id: "sprite_dialog_cntrl",
-                            class: "form-row",
-                            input {
-                                id: "sprite_dialog_submit",
-                                class: "btn btn-primary",
-                                r#type: "submit",
-                                "Ok"
+                    }
+                    label {
+                        "States Transition Smoothness: {smoothness.read()}",
+                        input {
+                            id: "sprite_dialog_smoothness",
+                            name: "smoothness",
+                            r#type: "range",
+                            min: "0.0",
+                            max: "0.75",
+                            step: "0.05",
+                            value: "{smoothness.read()}",
+                            oninput: move |event| {
+                                if let Ok(v) = event.value().parse::<f32>() {
+                                    smoothness.set(v);
+                                }
                             }
-                            button {
-                                id: "sprite_dialog_cancel",
-                                class: "btn btn-secondary",
-                                formmethod: "dialog",
-                                onclick: move |_| {
-                                    c1.get_edit_group_signal().set(None);
-                                },
-                                "Cancel"
-                            }
+                        }
+                    }
+                    div {
+                        id: "sprite_dialog_cntrl",
+                        class: "form-row",
+                        input {
+                            id: "sprite_dialog_submit",
+                            class: "btn btn-primary",
+                            r#type: "submit",
+                            "Ok"
+                        }
+                        button {
+                            id: "sprite_dialog_cancel",
+                            class: "btn btn-secondary",
+                            formmethod: "dialog",
+                            onclick: move |_| {
+                                c1.get_edit_group_signal().set(None);
+                            },
+                            "Cancel"
+                        }
+                        if group_id.is_some() {
                             button {
                                 id: "sprite_dialog_remove",
                                 class: "btn btn-danger",
@@ -130,8 +155,6 @@ pub fn GroupEditDialog(controller: ResourcesController) -> Element {
                 }
             }
         }
-    } else {
-        rsx! {}
     }
 }
 
@@ -145,12 +168,16 @@ fn parse_values(values: Vec<(String, FormValue)>, group: &mut SpriteGroup) {
             "title" => group.title = v,
             "parallax" => group.parallax_factor = v.parse::<f32>().unwrap_or(1.0),
             "smoothness" => group.smooth_factor = v.parse::<f32>().unwrap_or(0.5),
-            "size" => if let SpriteData::Text(data) = &mut group.data {
-                data.size = v.parse::<u8>().unwrap_or(15)
-            },
-            "text" => if let SpriteData::Text(data) = &mut group.data {
-                data.text = v
-            },
+            "size" => {
+                if let SpriteData::Text(data) = &mut group.data {
+                    data.size = v.parse::<u8>().unwrap_or(15)
+                }
+            }
+            "text" => {
+                if let SpriteData::Text(data) = &mut group.data {
+                    data.text = v
+                }
+            }
             _ => {}
         }
     }

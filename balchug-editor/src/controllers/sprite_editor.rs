@@ -9,6 +9,7 @@ use dioxus::prelude::*;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::rc::Rc;
+use gloo_timers::future::TimeoutFuture;
 use web_sys::{HtmlCanvasElement, Window};
 
 const EASING_LINEAR: &str = "Linear";
@@ -58,6 +59,8 @@ pub struct SpriteEditController {
     canvas_rect: Rc<Cell<F32Rect>>,
     project_state: ProjectState,
     groups_update: Rc<Cell<bool>>,
+    input_value: Store<(String, String)>,
+    input_value_future: Store<Option<UseFuture>>,
 }
 
 impl PartialEq for SpriteEditController {
@@ -86,6 +89,8 @@ impl SpriteEditController {
             preview_offset_listener: PreviewOffsetListener::default(),
             canvas_rect: Rc::new(Cell::new(F32Rect::default())),
             groups_update,
+            input_value: Store::new((String::default(), String::default())),
+            input_value_future: Store::new(None),
         };
         let mut c0 = controller.clone();
         use_effect(move || {
@@ -403,15 +408,33 @@ impl SpriteEditController {
     State Editor
      */
     pub fn handle_input_change(&mut self, name: &str, value: &str) {
+        if let Some(mut future) = self.input_value_future.as_mut() {
+            future.cancel();
+        }
+        self.input_value.set((String::from(name), String::from(value)));
+        let c = self.clone();
+        let future = use_future(move || {
+            let mut c = c.clone();
+            async move {
+                TimeoutFuture::new(1000).await;
+                c.input_change();
+                c.input_value_future.set(None);
+            }
+        });
+        self.input_value_future.set(Some(future));
+    }
+
+    fn input_change(&mut self) {
         if let Some(cur_state) = self.state_memo.read().cloned() {
+            let (name, value) = self.input_value.read().cloned();
             let mut new_sprite_state = cur_state.sprite_state;
             let num = value.parse::<f32>().unwrap_or_default();
-            match name {
+            match name.as_str() {
                 "offset" => new_sprite_state.offset = num,
                 "x" => new_sprite_state.x = num,
                 "y" => new_sprite_state.y = num,
                 "scale" => new_sprite_state.width = num,
-                "easing" => new_sprite_state.easing = map_str_to_easing(value),
+                "easing" => new_sprite_state.easing = map_str_to_easing(&value),
                 "y_axis" => {
                     let from_bottom = value == "Bottom";
                     if new_sprite_state.from_bottom != from_bottom {

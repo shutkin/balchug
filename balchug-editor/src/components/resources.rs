@@ -1,7 +1,9 @@
+use crate::components::group_edit::GroupPropsEdit;
 use crate::controllers::resources::ResourcesController;
 use crate::states::project_state::SpriteGroup;
 use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteImageData, SpriteTextData};
 use dioxus::prelude::*;
+use web_sys::console::group;
 
 #[component]
 pub fn ImagesBank(controller: ResourcesController) -> Element {
@@ -100,152 +102,26 @@ fn ImageAsset(controller: ResourcesController, id: usize, url: String) -> Elemen
 }
 
 #[component]
-pub fn ImageSpriteDialog(mut controller: ResourcesController) -> Element {
+pub fn AddImageDialog(mut controller: ResourcesController) -> Element {
     rsx! {
         if let Some(image_id) = *controller.get_image_adding_signal().read() {
-            div {
-                id: "sprite_dialog_overlay",
-                class: "modal-overlay",
-                div {
-                    id: "sprite_dialog_box",
-                    class: "modal-box",
-                    form {
-                        id: "sprite_dialog_body",
-                        class: "panel-body",
-                        onsubmit: move |e| {
-                            controller.get_image_adding_signal().set(None);
-                            let group = parse_group_props(e.values(), Some(image_id));
-                            controller.add_new_group_animation(group);
-                            e.prevent_default();
-                        },
-                        h4 {
-                            "Add image {image_id}"
-                        }
-                        label {
-                            "Title",
-                            input {
-                                id: "sprite_dialog_title",
-                                name: "title",
-                                r#type: "text",
-                            }
-                        }
-                        label {
-                            "Parallax Factor",
-                            input {
-                                id: "sprite_dialog_parallax",
-                                name: "parallax",
-                                r#type: "range",
-                                min: "0.5",
-                                max: "2",
-                                step: "0.1",
-                                value: "1.0",
-                            }
-                        }
-                        label {
-                            "States Transition Smoothness",
-                            input {
-                                id: "sprite_dialog_smoothness",
-                                name: "smoothness",
-                                r#type: "range",
-                                min: "0.0",
-                                max: "0.75",
-                                step: "0.05",
-                                value: "0.5",
-                            }
-                        }
-                        input {
-                            id: "sprite_dialog_submit",
-                            class: "btn btn-primary",
-                            r#type: "submit",
-                            "Ok"
-                        }
-                    }
-                }
+            GroupPropsEdit {
+                group: SpriteGroup::new_image(image_id),
+                group_id: None,
+                controller,
             }
         }
     }
 }
 
 #[component]
-pub fn TextSpriteDialog(mut controller: ResourcesController) -> Element {
+pub fn AddTextDialog(mut controller: ResourcesController) -> Element {
     rsx! {
         if *controller.get_text_adding_open().read() {
-            div {
-                id: "sprite_dialog_overlay",
-                class: "modal-overlay",
-                div {
-                    id: "sprite_dialog_box",
-                    class: "modal-box",
-                    form {
-                        id: "sprite_dialog_body",
-                        class: "panel-body",
-                        onsubmit: move |e| {
-                            controller.get_text_adding_open().set(false);
-                            let group = parse_group_props(e.values(), None);
-                            controller.add_new_group_animation(group);
-                            e.prevent_default();
-                        },
-                        h4 {
-                            "Add text"
-                        }
-                        label {
-                            "Title",
-                            input {
-                                id: "sprite_dialog_title",
-                                name: "title",
-                                r#type: "text",
-                            }
-                        }
-                        label {
-                            "Text",
-                            input {
-                                id: "sprite_dialog_title",
-                                name: "text",
-                                r#type: "text",
-                            }
-                        }
-                        label {
-                            "Size"
-                            select {
-                                id: "text_size_select",
-                                name: "size",
-                                for i in 0..=15 {
-                                    option {"{i + 15}"}
-                                }
-                            }
-                        }
-                        label {
-                            "Parallax Factor",
-                            input {
-                                id: "sprite_dialog_parallax",
-                                name: "parallax",
-                                r#type: "range",
-                                min: "0.5",
-                                max: "2",
-                                step: "0.1",
-                                value: "1.0",
-                            }
-                        }
-                        label {
-                            "States Transition Smoothness",
-                            input {
-                                id: "sprite_dialog_smoothness",
-                                name: "smoothness",
-                                r#type: "range",
-                                min: "0.0",
-                                max: "0.75",
-                                step: "0.05",
-                                value: "0.5",
-                            }
-                        }
-                        input {
-                            id: "sprite_dialog_submit",
-                            class: "btn btn-primary",
-                            r#type: "submit",
-                            "Ok"
-                        }
-                    }
-                }
+            GroupPropsEdit {
+                group: SpriteGroup::new_text(),
+                group_id: None,
+                controller,
             }
         }
     }

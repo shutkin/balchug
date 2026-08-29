@@ -88,17 +88,15 @@ impl ResourcesController {
         self.project_state.get_group(group_id)
     }
 
-    pub fn add_group(&mut self, group: &SpriteGroup) {
-        self.project_state.add_group(group.clone());
-        self.groups_update_signal.set(true);
-    }
-
     pub fn update_group(&mut self, group_id: usize, group: &SpriteGroup) {
         self.project_state.update_group(group_id, group);
+        if let Some(engine) = self.engine.borrow().as_ref() {
+            engine.set_scenario(GroupUtils::groups_to_sprites(&self.project_state.get_groups()));
+        }
         self.groups_update_signal.set(true);
     }
 
-    pub fn add_new_group_animation(&mut self, mut template: SpriteGroup) {
+    pub fn add_new_group_animation(&mut self, template: &SpriteGroup) {
         if let Some(engine) = self.engine.borrow().as_ref() {
             let offset = engine.get_offset();
 
@@ -123,9 +121,10 @@ impl ResourcesController {
                 proportion,
                 true,
             );
-            template.states = vec![first, last];
+            let mut group = template.clone();
+            group.states = vec![first, last];
 
-            self.project_state.add_group(template);
+            self.project_state.add_group(group);
             let groups = self.project_state.get_groups();
             engine.set_scenario(GroupUtils::groups_to_sprites(&groups));
 

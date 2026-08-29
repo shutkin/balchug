@@ -15,7 +15,7 @@ impl<T: 'static> UpdatesSender<T> {
             handler: Rc::new(Box::new(handler)),
         }
     }
-    
+
     pub fn start(&self) -> Rc<Cell<bool>> {
         let update_signal = Rc::new(Cell::new(false));
         let update_signal_clone = update_signal.clone();
@@ -24,16 +24,17 @@ impl<T: 'static> UpdatesSender<T> {
             let handler = handler.clone();
             let update_signal = update_signal_clone.clone();
             async move {
-            loop {
-                TimeoutFuture::new(3000).await;
-                if update_signal.get() {
-                    if let Some(value) = handler.collect() {
-                        handler.send(value).await;
+                loop {
+                    TimeoutFuture::new(3000).await;
+                    if update_signal.get() {
+                        if let Some(value) = handler.collect() {
+                            handler.send(value).await;
+                        }
+                        update_signal.set(false);
                     }
-                    update_signal.set(false);
                 }
             }
-        }});
+        });
         update_signal
     }
 }

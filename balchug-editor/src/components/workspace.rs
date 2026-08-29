@@ -1,19 +1,36 @@
+use crate::components::group_edit::GroupEditDialog;
 use crate::components::overlay::PreviewOverlay;
+use crate::components::project::ProjectControl;
+use crate::components::resources::{AddImageDialog, AddTextDialog, ImagesBank, TextLine};
 use crate::components::state_editor::StateEditor;
 use crate::components::timeline::TimeLine;
+use crate::controllers::project_controller::ProjectController;
+use crate::controllers::resources::ResourcesController;
 use crate::controllers::sprite_editor::SpriteEditController;
 use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use wasm_bindgen::JsCast;
+use wasm_bindgen::closure::Closure;
 use web_sys::window;
-use crate::components::project::ProjectControl;
-use crate::components::resources::{ImagesBank, ImageSpriteDialog, TextLine, TextSpriteDialog};
-use crate::components::group_edit::GroupEditDialog;
-use crate::controllers::project_controller::ProjectController;
-use crate::controllers::resources::ResourcesController;
 
 #[component]
 pub fn Workspace(project_controller: ProjectController, resources_controller: ResourcesController, edit_controller: SpriteEditController) -> Element {
+    if let Some(doc) = window().and_then(|window| window.document()) {
+        let on_key = {
+            let mut edit_controller = edit_controller.clone();
+            Closure::wrap(Box::new(move |e: web_sys::KeyboardEvent| {
+                if e.code() == "Escape" {
+                    edit_controller.set_timeline_point(None);
+                    e.prevent_default();
+                }
+            }) as Box<dyn FnMut(web_sys::KeyboardEvent)>)
+        };
+        if let Err(err) = doc.add_event_listener_with_callback("keydown", on_key.as_ref().unchecked_ref()) {
+            error!("Failed to add key event handler: {err:?}");
+        }
+        on_key.forget();
+    }
+
     rsx! {
         main {
             id: "workspace_main",
@@ -133,8 +150,8 @@ fn ResourcesPanel(controller: ResourcesController) -> Element {
             class: "panel-box",
             ImagesBank {controller: controller.clone()}
             TextLine {controller: controller.clone()}
-            ImageSpriteDialog {controller: controller.clone()}
-            TextSpriteDialog {controller: controller.clone()}
+            AddImageDialog {controller: controller.clone()}
+            AddTextDialog {controller: controller.clone()}
         }
     }
 }
