@@ -108,7 +108,7 @@ impl ResourcesController {
                 x: 0.0,
                 y: 0.5 / aspect_ratio,
                 from_bottom: true,
-                width: 1.0,
+                scale: 1.0,
                 color: [color[0], color[1], color[2], 255],
                 easing: Easing::default(),
             };
@@ -124,6 +124,7 @@ impl ResourcesController {
             let mut group = template.clone();
             group.states = vec![first, last];
 
+            info!("Add new group {group:?}");
             self.project_state.add_group(group);
             let groups = self.project_state.get_groups();
             engine.set_scenario(GroupUtils::groups_to_sprites(&groups, engine));

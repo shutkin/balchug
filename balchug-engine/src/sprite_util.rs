@@ -21,7 +21,7 @@ pub fn scale_sprite_state(state: &SpriteState, scale: f32) -> SpriteState {
         x: scale * state.x,
         y: scale * state.y,
         from_bottom: state.from_bottom,
-        width: scale * state.width,
+        scale: scale * state.scale,
         color: state.color,
         easing: state.easing,
     }
@@ -43,7 +43,7 @@ impl SpriteUtil {
             x: linear(s0.x, s1.x, factor),
             y: linear(state_y(s0, self.height), state_y(s1, self.height), factor),
             from_bottom: false,
-            width: linear(s0.width, s1.width, factor),
+            scale: linear(s0.scale, s1.scale, factor),
             color: [
                 linear(s0.color[0] as f32, s1.color[0] as f32, factor).round().min(255.0) as u8,
                 linear(s0.color[1] as f32, s1.color[1] as f32, factor).round().min(255.0) as u8,

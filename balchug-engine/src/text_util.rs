@@ -16,7 +16,7 @@ impl TextUtil {
 
     pub fn arrange_text_line(&self, line: &SpriteTextData, cur_state: &SpriteState, font: &FontData, atlas_items: &HashMap<usize, AtlasItem>) -> Vec<Sprite> {
         let mut result = Vec::new();
-        let scale = cur_state.width * line.size as f32 * TEXT_SIZE_FACTOR / font.height;
+        let scale = cur_state.scale * line.size as f32 * TEXT_SIZE_FACTOR / font.height;
         let (mut cx, cy) = (cur_state.x, state_y(cur_state, self.height) + font.ascend * scale);
         for c in line.text.chars() {
             if c.is_control() {
@@ -33,7 +33,7 @@ impl TextUtil {
                     x: cx + glyph.offset_x * scale,
                     y: cy + glyph.offset_y * scale,
                     from_bottom: false,
-                    width: item.origin_width as f32 * scale,
+                    scale: item.origin_width as f32 * scale,
                     easing: cur_state.easing,
                 };
                 result.push(Sprite {

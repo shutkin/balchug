@@ -2,7 +2,7 @@ use balchug_common::sprite::{SpriteData, SpriteImageData, SpriteState, SpriteTex
 use dioxus::prelude::*;
 use balchug_common::api::ProjectProperties;
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub struct SpriteGroup {
     pub title: String,
     pub data: SpriteData,

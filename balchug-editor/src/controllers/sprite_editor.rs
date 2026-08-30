@@ -291,7 +291,7 @@ impl SpriteEditController {
         canvas_rect: F32Rect
     ) -> F32Rect {
         let (proportion_x, proportion_y) = GroupUtils::group_proportion(engine, group);
-        let width = group.max_width * sprite_state.width;
+        let width = group.max_width * sprite_state.scale;
         let scaled_y = sprite_state.y * canvas_rect.width;
         let y = if sprite_state.from_bottom {
             canvas_rect.y + canvas_rect.height - scaled_y
@@ -302,7 +302,7 @@ impl SpriteEditController {
             x: sprite_state.x * canvas_rect.width + canvas_rect.x,
             y,
             width: width * canvas_rect.width,
-            height: sprite_state.width * canvas_rect.width * proportion_y / proportion_x,
+            height: sprite_state.scale * canvas_rect.width * proportion_y / proportion_x,
         }
     }
 
@@ -358,7 +358,7 @@ impl SpriteEditController {
                 let canvas_rect = self.canvas_rect.get();
 
                 if let SpriteData::Text(_) = &group.data && resize_horizontal {
-                    group.max_width = new_rect.width / canvas_rect.width / sprite_state.width;
+                    group.max_width = new_rect.width / canvas_rect.width / sprite_state.scale;
                     new_rect = Self::scale_rect(engine, &group, sprite_state, canvas_rect);
                 } else {
                     let new_y = if sprite_state.from_bottom {
@@ -368,7 +368,7 @@ impl SpriteEditController {
                     };
                     new_sprite_state.x = (new_rect.x - canvas_rect.x) / canvas_rect.width;
                     new_sprite_state.y = new_y / canvas_rect.width;
-                    new_sprite_state.width = new_rect.width / canvas_rect.width / group.max_width;
+                    new_sprite_state.scale = new_rect.width / canvas_rect.width / group.max_width;
                     Self::apply_states_change(&state.timeline_points, &mut group.states,
                                               new_sprite_state, state.parallax_factor);
                 }
@@ -421,16 +421,20 @@ impl SpriteEditController {
                 let dy = (new_state.offset - state.offset) / parallax_factor;
                 let modified_state = SpriteState {
                     offset: state.offset,
-                    x: new_state.x,
-                    y: if state.from_bottom { new_state.y - dy } else { new_state.y + dy },
+                    x: Self::round(new_state.x),
+                    y: Self::round(if state.from_bottom { new_state.y - dy } else { new_state.y + dy }),
                     from_bottom: state.from_bottom,
-                    width: new_state.width,
+                    scale: new_state.scale,
                     color: new_state.color,
                     easing: state.easing,
                 };
                 states[index] = modified_state;
             }
         }
+    }
+
+    fn round(value: f32) -> f32 {
+        (value * 1000.0).round() / 1000.0
     }
 
     /*
@@ -452,7 +456,7 @@ impl SpriteEditController {
                 "offset" => new_sprite_state.offset = num,
                 "x" => new_sprite_state.x = num,
                 "y" => new_sprite_state.y = num,
-                "scale" => new_sprite_state.width = num,
+                "scale" => new_sprite_state.scale = num,
                 "easing" => new_sprite_state.easing = map_str_to_easing(value),
                 "y_axis" => {
                     let from_bottom = value == "Bottom";

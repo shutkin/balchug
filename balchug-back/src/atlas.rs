@@ -86,7 +86,7 @@ pub fn optimize_atlas_items(atlas: &Atlas, groups: &[ProjectSpriteGroup], target
     for group in groups {
         if let SpriteData::Image(data) = &group.data {
             let avg_width = group.states.iter()
-                .map(|s| s.width)
+                .map(|s| s.scale)
                 .fold(0.0, |acc, x| acc + x) * target_width as f32 / group.states.len() as f32;
             items_scale.entry(data.atlas_item_id).or_insert(Vec::new()).push(avg_width);
         }

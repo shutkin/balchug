@@ -21,7 +21,7 @@ pub struct SpriteState {
     pub x: f32,
     pub y: f32,
     pub from_bottom: bool,
-    pub width: f32,
+    pub scale: f32,
     pub color: [u8; 4],
     pub easing: Easing,
 }

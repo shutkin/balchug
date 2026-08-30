@@ -24,6 +24,15 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
     let mut c0 = controller.clone();
     let c1 = controller.clone();
 
+    let title = group.title.clone();
+    let mut title = use_signal(move || title);
+    let (text, size) = if let SpriteData::Text(data) = &group.data {
+        (data.text.clone(), data.size)
+    } else {
+        (String::new(), 15)
+    };
+    let mut text = use_signal(move || text);
+    let mut size = use_signal(move || size);
     let mut parallax = use_signal(move || group.parallax_factor);
     let mut smoothness = use_signal(move || group.smooth_factor);
 
@@ -65,7 +74,8 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
                             id: "sprite_dialog_title",
                             name: "title",
                             r#type: "text",
-                            value: "{group.title}",
+                            value: "{title.read()}",
+                            oninput: move |e| {title.set(e.value());}
                         }
                     }
                     if let SpriteData::Text(data) = group.data.clone() {
@@ -75,7 +85,8 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
                                 id: "sprite_dialog_title",
                                 name: "text",
                                 rows: 4,
-                                value: "{data.text}"
+                                value: "{text.read()}",
+                                oninput: move |e| {text.set(e.value());}
                             }
                         }
                         label {
@@ -83,9 +94,13 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
                             select {
                                 id: "text_size_select",
                                 name: "size",
-                                for i in 15..=30 {
+                                onchange: move |e: Event<FormData>| {
+                                    let v = e.value().parse::<u8>().unwrap_or(15);
+                                    size.set(v);
+                                },
+                                for i in 15_u8..=30_u8 {
                                     option {
-                                        selected: i == data.size,
+                                        selected: i == *size.read(),
                                         "{i}"
                                     }
                                 }
@@ -164,6 +179,7 @@ fn parse_values(values: Vec<(String, FormValue)>, group: &mut SpriteGroup) {
             FormValue::Text(txt) => txt,
             FormValue::File(_) => String::new(),
         };
+        info!("Parse group parameter {name} = '{v}'");
         match name.as_str() {
             "title" => group.title = v,
             "parallax" => group.parallax_factor = v.parse::<f32>().unwrap_or(1.0),

@@ -171,7 +171,7 @@ fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> 
                     input {
                         r#type: "number",
                         name: "scale",
-                        value: "{round(se.sprite_state.width)}",
+                        value: "{round(se.sprite_state.scale)}",
                         step: "0.001",
                         oninput: move |e| {
                             c4.input_change("scale", &e.value());

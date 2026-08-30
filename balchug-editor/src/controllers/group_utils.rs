@@ -13,7 +13,7 @@ impl GroupUtils {
         first_is_from_bottom: bool,
     ) -> (SpriteState, SpriteState) {
         let cur_y = if cur_state.from_bottom {1.0 / screen_aspect_ratio - cur_state.y} else {cur_state.y};
-        let end_y = -cur_state.width / item_proportion;
+        let end_y = -cur_state.scale / item_proportion;
         let end_offset = cur_state.offset + (cur_y - end_y) * parallax_factor;
         let start_y = 1.0 / screen_aspect_ratio;
         let start_offset = cur_state.offset - (start_y - cur_y) * parallax_factor;
@@ -26,7 +26,7 @@ impl GroupUtils {
             x: cur_state.x,
             y: if first_is_from_bottom {1.0 / screen_aspect_ratio - start_y} else {start_y},
             from_bottom: first_is_from_bottom,
-            width: cur_state.width,
+            scale: cur_state.scale,
             color: cur_state.color,
             easing: cur_state.easing,
         };
@@ -35,7 +35,7 @@ impl GroupUtils {
             x: cur_state.x,
             y: end_y,
             from_bottom: false,
-            width: cur_state.width,
+            scale: cur_state.scale,
             color: cur_state.color,
             easing: cur_state.easing,
         };
@@ -148,11 +148,11 @@ impl GroupUtils {
         states.iter().map(|state| {
             let mut state = *state;
             if state.from_bottom {
-                state.y -= state.width * dy;
+                state.y -= state.scale * dy;
             } else {
-                state.y += state.width * dy;
+                state.y += state.scale * dy;
             }
-            state.x += state.width * dx;
+            state.x += state.scale * dx;
             state
         }).collect()
     }

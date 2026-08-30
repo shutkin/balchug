@@ -73,7 +73,7 @@ pub fn animations_to_code(animations: &[SpriteAnimation]) -> Result<String, Comm
                 st.x,
                 st.y,
                 st.from_bottom,
-                st.width,
+                st.scale,
                 st.color,
                 easing(st)
             )?;

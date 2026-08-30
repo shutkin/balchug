@@ -176,8 +176,8 @@ impl GlRenderer {
                 let sprite_pos_loc = self.gl.get_uniform_location(&self.program, "u_spritePos");
                 let sprite_size_loc = self.gl.get_uniform_location(&self.program, "u_spriteSize");
                 self.gl.uniform2f(sprite_pos_loc.as_ref(), sprite.state.x, sprite.state.y);
-                let height = sprite.state.width * sprite.atlas_item.origin_height as f32 / sprite.atlas_item.origin_width as f32;
-                self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.width, height);
+                let height = sprite.state.scale * sprite.atlas_item.origin_height as f32 / sprite.atlas_item.origin_width as f32;
+                self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.scale, height);
 
                 let sprite_alpha_loc = self.gl.get_uniform_location(&self.program, "u_spriteAlpha");
                 self.gl.uniform1f(sprite_alpha_loc.as_ref(), sprite.state.color[3] as f32 / 255.0);
@@ -200,9 +200,9 @@ impl GlRenderer {
             for sprite in txt_sprites {
                 let sprite_pos_loc = self.gl.get_uniform_location(&self.txt_program, "u_spritePos");
                 let sprite_size_loc = self.gl.get_uniform_location(&self.txt_program, "u_spriteSize");
-                let height = sprite.state.width * sprite.atlas_item.origin_height as f32 / sprite.atlas_item.origin_width as f32;
+                let height = sprite.state.scale * sprite.atlas_item.origin_height as f32 / sprite.atlas_item.origin_width as f32;
                 self.gl.uniform2f(sprite_pos_loc.as_ref(), sprite.state.x, sprite.state.y);
-                self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.width, height);
+                self.gl.uniform2f(sprite_size_loc.as_ref(), sprite.state.scale, height);
 
                 let sprite_alpha_loc = self.gl.get_uniform_location(&self.txt_program, "u_spriteColor");
                 self.gl.uniform4f(
