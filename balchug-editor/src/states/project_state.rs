@@ -8,8 +8,9 @@ pub struct SpriteGroup {
     pub data: SpriteData,
     pub parallax_factor: f32,
     pub smooth_factor: f32,
-    pub states: Vec<SpriteState>,
     pub max_width: f32,
+    pub states: Vec<SpriteState>,
+    pub is_fixed: bool,
 }
 
 impl SpriteGroup {
@@ -21,6 +22,7 @@ impl SpriteGroup {
             smooth_factor: 0.5,
             max_width: 1.0,
             states: Vec::new(),
+            is_fixed: true,
         }
     }
 
@@ -32,6 +34,7 @@ impl SpriteGroup {
             smooth_factor: 0.5,
             max_width: 1.0,
             states: Vec::new(),
+            is_fixed: true,
         }
     }
 }

@@ -47,8 +47,9 @@ pub struct ProjectSpriteGroup {
     pub data: SpriteData,
     pub parallax_factor: f32,
     pub smooth_factor: f32,
-    pub states: Vec<SpriteState>,
     pub max_width: f32,
+    pub states: Vec<SpriteState>,
+    pub is_fixed: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

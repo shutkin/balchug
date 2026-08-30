@@ -49,7 +49,7 @@ pub fn PreviewOverlay(controller: SpriteEditController) -> Element {
                         } else {
                             let start_rect = *start_drag_rect.read();
                             let new_rect = modify_rect(start_rect, dx, dy, area);
-                            c0.set_sprite_rect(new_rect);
+                            c0.set_sprite_rect(new_rect, matches!(area, RectArea::Left | RectArea::Right));
                         }
                     } else {
                         let coordinates = event.element_coordinates();

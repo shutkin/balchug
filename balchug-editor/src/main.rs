@@ -125,6 +125,7 @@ fn App() -> Element {
                     smooth_factor: group.smooth_factor,
                     max_width: group.max_width,
                     states: group.states.clone(),
+                    is_fixed: group.is_fixed,
                 }).collect::<Vec<_>>();
                 let sprites = GroupUtils::groups_to_sprites(&groups, engine);
                 engine.set_scenario(sprites);

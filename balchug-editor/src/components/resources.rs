@@ -1,9 +1,7 @@
 use crate::components::group_edit::GroupPropsEdit;
 use crate::controllers::resources::ResourcesController;
 use crate::states::project_state::SpriteGroup;
-use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteImageData, SpriteTextData};
 use dioxus::prelude::*;
-use web_sys::console::group;
 
 #[component]
 pub fn ImagesBank(controller: ResourcesController) -> Element {
@@ -125,41 +123,6 @@ pub fn AddTextDialog(mut controller: ResourcesController) -> Element {
             }
         }
     }
-}
-
-fn parse_group_props(values: Vec<(String, FormValue)>, image_id: Option<usize>) -> SpriteGroup {
-    let mut group = SpriteGroup {
-        title: String::new(),
-        data: if let Some(image_id) = image_id {
-            SpriteData::Image(SpriteImageData{
-                atlas_item_id: image_id
-            })
-        } else {
-            SpriteData::Text(SpriteTextData {
-                text: String::new(),
-                size: 15,
-            })
-        },
-        parallax_factor: 1.0,
-        smooth_factor: 0.5,
-        max_width: 1.0,
-        states: Vec::new(),
-    };
-    for (name, value) in values {
-        let v = match value {
-            FormValue::Text(txt) => txt,
-            FormValue::File(_) => String::new(),
-        };
-        match name.as_str() {
-            "title" => group.title = v,
-            "parallax" => group.parallax_factor = v.parse::<f32>().unwrap_or(1.0),
-            "smoothness" => group.smooth_factor = v.parse::<f32>().unwrap_or(0.5),
-            "size" => if let SpriteData::Text(data) = &mut group.data {data.size = v.parse::<u8>().unwrap_or(15)},
-            "text" => if let SpriteData::Text(data) = &mut group.data {data.text = v},
-            _ => {}
-        }
-    }
-    group
 }
 
 #[component]

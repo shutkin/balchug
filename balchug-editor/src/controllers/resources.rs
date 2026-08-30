@@ -113,7 +113,7 @@ impl ResourcesController {
                 easing: Easing::default(),
             };
 
-            let (proportion_x, proportion_y) = GroupUtils::group_proportion(engine, &template);
+            let (proportion_x, proportion_y) = GroupUtils::group_proportion(engine, template);
             let (first, last) = GroupUtils::create_init_and_final_states(
                 &cur_state,
                 template.parallax_factor,

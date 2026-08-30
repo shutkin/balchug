@@ -65,7 +65,7 @@ pub fn BalchugPreview(controller: SpriteEditController) -> Element {
                 span {
                     class: "{status_class}",
                 }
-                span { "Live Viewport: 16:9 Horizontal" }
+                span { "Live Viewport: 16:9 Vertical" }
             }
             div {
                 id: "balchug_preview_frame",

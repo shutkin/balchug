@@ -54,7 +54,7 @@ impl GroupUtils {
                 }],
                 SpriteData::Text(data) => {
                     let lines = Self::split_text(&data, group, engine);
-                    Self::create_text_sprites(lines, &data, group, sprites.len())
+                    Self::create_text_sprites(lines, &data, group, sprites.len(), engine)
                 }
             };
             sprites.extend(groups_sprites);
@@ -71,13 +71,12 @@ impl GroupUtils {
             }
             SpriteData::Text(text_data) => {
                 let lines = Self::split_text(text_data, group, engine);
-                let max_width = lines.iter().map(|(_, width)| *width).reduce(f32::max).unwrap_or(1.0);
-                (max_width, lines.len() as f32 * text_data.size as f32 * TEXT_SIZE_FACTOR)
+                (1.0, lines.len() as f32 * text_data.size as f32 * TEXT_SIZE_FACTOR)
             }
         }
     }
 
-    fn split_text(data: &SpriteTextData, group: &SpriteGroup, engine: &BalchugEngine) -> Vec<(String, f32)> {
+    fn split_text(data: &SpriteTextData, group: &SpriteGroup, engine: &BalchugEngine) -> Vec<Vec<(String, f32)>> {
         let space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size: data.size }, 1.0).0;
         let words = data.text.split(' ')
             .filter(|word| !word.is_empty())
@@ -88,42 +87,64 @@ impl GroupUtils {
             })
             .collect::<Vec<_>>();
         let mut lines = Vec::new();
-        let mut line = String::new();
+        let mut line = Vec::new();
         let mut line_width = 0.0;
         for (word, word_width) in words {
             if line_width + space_width + word_width > group.max_width {
-                lines.push((line.clone(), line_width));
-                line = String::new();
+                lines.push(line.clone());
+                line = Vec::new();
                 line_width = 0.0;
             }
             if !line.is_empty() {
-                line.push(' ');
                 line_width += space_width;
             }
-            line.push_str(&word);
+            line.push((word, word_width));
             line_width += word_width;
         }
         if !line.is_empty() {
-            lines.push((line, line_width));
+            lines.push(line);
         }
         lines
     }
     
-    fn create_text_sprites(lines: Vec<(String, f32)>, data: &SpriteTextData, group: &SpriteGroup, start_id: usize) -> Vec<SpriteAnimation> {
+    fn create_text_sprites(
+        lines: Vec<Vec<(String, f32)>>,
+        data: &SpriteTextData,
+        group: &SpriteGroup,
+        start_id: usize,
+        engine: &BalchugEngine,
+    ) -> Vec<SpriteAnimation> {
+        let mut sprite_id = start_id;
+        let font_space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size: data.size }, 1.0).0;
+        let last_line = lines.len() - 1;
         lines.into_iter().enumerate()
-            .map(|(i, (line, _))| {
-                let dy = i as f32 * data.size as f32 * TEXT_SIZE_FACTOR;
-                SpriteAnimation {
-                    sprite_id: start_id + i,
-                    data: SpriteData::Text(SpriteTextData {text: line, size: data.size}),
-                    states: Self::translate_states(&group.states, dy),
-                    smooth_factor: group.smooth_factor,
-                }
+            .flat_map(|(line_index, words)| {
+                let dy = line_index as f32 * data.size as f32 * TEXT_SIZE_FACTOR;
+                let sum_words_width = words.iter().map(|(_, width)| width).sum::<f32>();
+                let space_width = if words.len() > 1 && line_index < last_line {
+                    (group.max_width - sum_words_width) / (words.len() - 1) as f32
+                } else {
+                    font_space_width
+                };
+                let mut dx = 0.0;
+                words.into_iter()
+                    .map(|(word, word_width)| {
+                        let sprite = SpriteAnimation {
+                            sprite_id,
+                            data: SpriteData::Text(SpriteTextData { text: word, size: data.size }),
+                            states: Self::translate_states(&group.states, dx, dy),
+                            smooth_factor: group.smooth_factor,
+                        };
+                        sprite_id += 1;
+                        dx += word_width + space_width;
+                        sprite
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect()
     }
 
-    fn translate_states(states: &[SpriteState], dy: f32) -> Vec<SpriteState> {
+    fn translate_states(states: &[SpriteState], dx: f32, dy: f32) -> Vec<SpriteState> {
         states.iter().map(|state| {
             let mut state = *state;
             if state.from_bottom {
@@ -131,6 +152,7 @@ impl GroupUtils {
             } else {
                 state.y += state.width * dy;
             }
+            state.x += state.width * dx;
             state
         }).collect()
     }

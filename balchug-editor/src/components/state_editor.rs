@@ -7,6 +7,7 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
     if let Some(se) = controller.get_cur_state() {
         let mut c0 = controller.clone();
         let mut c1 = controller.clone();
+        let mut c2 = controller.clone();
 
         rsx! {
             section {
@@ -26,12 +27,31 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                     div {
                         id: "state_props_btn_row",
                         class: "form-row",
+                        if controller.is_group_fixing_possible() {
+                            button {
+                                id: "state_delete",
+                                class: "btn btn-secondary",
+                                onclick: move |_| {
+                                    c0.fix_group(true);
+                                },
+                                "Fix States"
+                            }
+                        } else {
+                            button {
+                                id: "state_delete",
+                                class: "btn btn-secondary",
+                                onclick: move |_| {
+                                    c0.fix_group(false);
+                                },
+                                "Unfix States"
+                            }
+                        }
                         if controller.is_modify_states_possible(false, true) {
                             button {
                                 id: "state_delete",
                                 class: "btn btn-danger",
                                 onclick: move |_| {
-                                    c0.remove_sprite_state();
+                                    c1.remove_sprite_state();
                                 },
                                 "Delete"
                             }
@@ -41,7 +61,7 @@ pub fn StateEditor(controller: SpriteEditController) -> Element {
                                 id: "state_add",
                                 class: "btn btn-secondary",
                                 onclick: move |_| {
-                                    c1.add_new_sprite_state();
+                                    c2.add_new_sprite_state();
                                 },
                                 "Add New State"
                             }
@@ -80,7 +100,7 @@ fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> 
                         value: "{round(se.sprite_state.offset)}",
                         step: "0.001",
                         oninput: move |e| {
-                            c0.handle_input_change("offset", &e.value());
+                            c0.input_change("offset", &e.value());
                         },
                     }
                 }
@@ -96,7 +116,7 @@ fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> 
                         value: "{round(se.sprite_state.x)}",
                         step: "0.001",
                         oninput: move |e| {
-                            c1.handle_input_change("x", &e.value());
+                            c1.input_change("x", &e.value());
                         },
                     }
                 }
@@ -112,7 +132,7 @@ fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> 
                         value: "{round(se.sprite_state.y)}",
                         step: "0.001",
                         oninput: move |e| {
-                            c2.handle_input_change("y", &e.value());
+                            c2.input_change("y", &e.value());
                         },
                     }
                 }
@@ -130,7 +150,7 @@ fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> 
                         id: "y_axis_select",
                         name: "y_axis",
                         oninput: move |e| {
-                            c3.handle_input_change("y_axis", &e.value());
+                            c3.input_change("y_axis", &e.value());
                         },
                         option {
                             selected: !se.sprite_state.from_bottom,
@@ -154,7 +174,7 @@ fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> 
                         value: "{round(se.sprite_state.width)}",
                         step: "0.001",
                         oninput: move |e| {
-                            c4.handle_input_change("scale", &e.value());
+                            c4.input_change("scale", &e.value());
                         },
                     }
                 }
@@ -170,7 +190,7 @@ fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> 
                         value: "{se.sprite_state.color[3]}",
                         step: "1",
                         oninput: move |e| {
-                            c5.handle_input_change("alpha", &e.value());
+                            c5.input_change("alpha", &e.value());
                         },
                     }
                 }
@@ -185,7 +205,7 @@ fn StateStatsInputs(controller: SpriteEditController, se: SpriteEditorState) -> 
                         name: "easing",
                         value: "{map_easing_to_str(se.sprite_state.easing)}",
                         oninput: move |e| {
-                            c6.handle_input_change("easing", &e.value());
+                            c6.input_change("easing", &e.value());
                         },
                         for &easing in ALL_EASING_VARIANTS.iter() {
                             option {

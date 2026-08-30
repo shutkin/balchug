@@ -100,8 +100,9 @@ impl Api {
                 data: group.data,
                 parallax_factor: group.parallax_factor,
                 smooth_factor: group.smooth_factor,
-                states: group.states,
                 max_width: group.max_width,
+                states: group.states,
+                is_fixed: group.is_fixed,
             }).collect();
 
         let url = format!("{SERVER_URL}/{}/groups", self.project_id.borrow());

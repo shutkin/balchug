@@ -6,10 +6,10 @@ use balchug_common::F32Rect;
 use balchug_common::sprite::{Easing, SpriteData, SpriteState};
 use balchug_engine::{BalchugEngine, OffsetListener, STATE_OFFSET_LAG, start_engine};
 use dioxus::prelude::*;
+use gloo_timers::future::TimeoutFuture;
 use std::cell::{Cell, RefCell};
 use std::cmp::Ordering;
 use std::rc::Rc;
-use gloo_timers::future::TimeoutFuture;
 use web_sys::{HtmlCanvasElement, Window};
 
 const EASING_LINEAR: &str = "Linear";
@@ -59,8 +59,7 @@ pub struct SpriteEditController {
     canvas_rect: Rc<Cell<F32Rect>>,
     project_state: ProjectState,
     groups_update: Rc<Cell<bool>>,
-    input_value: Store<(String, String)>,
-    input_value_future: Store<Option<UseFuture>>,
+    input_value: Signal<(String, String)>,
     font_is_ready: Signal<bool>,
 }
 
@@ -90,8 +89,7 @@ impl SpriteEditController {
             preview_offset_listener: PreviewOffsetListener::default(),
             canvas_rect: Rc::new(Cell::new(F32Rect::default())),
             groups_update,
-            input_value: Store::new((String::default(), String::default())),
-            input_value_future: Store::new(None),
+            input_value: Signal::new((String::default(), String::default())),
             font_is_ready: Signal::new(false),
         };
         let mut c0 = controller.clone();
@@ -99,6 +97,36 @@ impl SpriteEditController {
             if let Some(group_id) = *selected_group.read() {
                 c0.set_timeline_group(group_id);
                 ps1.unselect_group();
+            }
+        });
+
+        let clone = controller.clone();
+        use_future(move || {
+            let mut clone = clone.clone();
+            async move {
+                let mut prev_name = String::new();
+                let mut prev_value = String::new();
+                let mut prev_value_tick = 0_u16;
+                loop {
+                    TimeoutFuture::new(100).await;
+                    let (mut name, mut value) = clone.input_value.peek().cloned();
+                    if name != prev_name && !prev_name.is_empty() {
+                        clone.handle_input_change(&prev_name, &prev_value)
+                    } else {
+                        if value == prev_value {
+                            prev_value_tick += 1;
+                            if prev_value_tick > 5 {                                clone.handle_input_change(&name, &value);
+                                name = String::default();
+                                value = String::default();
+                                clone.input_value.set((name.clone(), value.clone()));
+                            }
+                        } else {
+                            prev_value_tick = 0;
+                        }
+                    }
+                    prev_name = name;
+                    prev_value = value;
+                }
             }
         });
 
@@ -263,11 +291,7 @@ impl SpriteEditController {
         canvas_rect: F32Rect
     ) -> F32Rect {
         let (proportion_x, proportion_y) = GroupUtils::group_proportion(engine, group);
-        let width = if let SpriteData::Text(_) = &group.data {
-            proportion_x
-        } else {
-            sprite_state.width
-        };
+        let width = group.max_width * sprite_state.width;
         let scaled_y = sprite_state.y * canvas_rect.width;
         let y = if sprite_state.from_bottom {
             canvas_rect.y + canvas_rect.height - scaled_y
@@ -324,33 +348,30 @@ impl SpriteEditController {
         }
     }
 
-    pub fn set_sprite_rect(&mut self, new_rect: F32Rect) {
+    pub fn set_sprite_rect(&mut self, mut new_rect: F32Rect, resize_horizontal: bool) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().cloned() {
             let mut group = self.project_state.get_group(state.timeline_points.sprite_group_index);
 
             if let Some(sprite_state) = engine.interpolate_state(&group.states, state.sprite_state.offset, group.smooth_factor) {
+                let mut new_sprite_state = sprite_state;
                 let canvas_rect = self.canvas_rect.get();
-                let new_y = if sprite_state.from_bottom {
-                    canvas_rect.y + canvas_rect.height - new_rect.y
+
+                if let SpriteData::Text(_) = &group.data && resize_horizontal {
+                    group.max_width = new_rect.width / canvas_rect.width / sprite_state.width;
+                    new_rect = Self::scale_rect(engine, &group, sprite_state, canvas_rect);
                 } else {
-                    new_rect.y - canvas_rect.y
-                };
-                let mut new_sprite_state = SpriteState {
-                    offset: sprite_state.offset,
-                    x: (new_rect.x - canvas_rect.x) / canvas_rect.width,
-                    y: new_y / canvas_rect.width,
-                    from_bottom: sprite_state.from_bottom,
-                    width: new_rect.width / canvas_rect.width,
-                    color: sprite_state.color,
-                    easing: sprite_state.easing,
-                };
-                if let SpriteData::Text(_) = &group.data {
-                    let (proportion_x, _) = GroupUtils::group_proportion(engine, &group);
-                    new_sprite_state.width /= proportion_x;
+                    let new_y = if sprite_state.from_bottom {
+                        canvas_rect.y + canvas_rect.height - new_rect.y
+                    } else {
+                        new_rect.y - canvas_rect.y
+                    };
+                    new_sprite_state.x = (new_rect.x - canvas_rect.x) / canvas_rect.width;
+                    new_sprite_state.y = new_y / canvas_rect.width;
+                    new_sprite_state.width = new_rect.width / canvas_rect.width / group.max_width;
+                    Self::apply_states_change(&state.timeline_points, &mut group.states,
+                                              new_sprite_state, state.parallax_factor);
                 }
-                Self::apply_states_change(&state.timeline_points, &mut group.states,
-                                          new_sprite_state, state.parallax_factor);
 
                 let (state, groups) = self.update_editor_state(state, new_sprite_state, group, engine, new_rect);
                 self.project_state.groups.replace(groups);
@@ -367,20 +388,17 @@ impl SpriteEditController {
         engine: &BalchugEngine,
         new_rect: F32Rect,
     ) -> (SpriteEditorState, Vec<SpriteGroup>) {
-        if editor_state.timeline_points.states_indices.len() == 2 && group.states.len() == 2 {
+        if group.is_fixed {
             let canvas_rect = self.canvas_rect.get();
-            let first_index = editor_state.timeline_points.states_indices[0];
-            let last_index = editor_state.timeline_points.states_indices[editor_state.timeline_points.states_indices.len() - 1];
             let (proportion_x, proportion_y) = GroupUtils::group_proportion(engine, &group);
             let (first_state, last_state) = GroupUtils::create_init_and_final_states(
                 &new_sprite_state,
                 editor_state.parallax_factor,
                 canvas_rect.width / canvas_rect.height,
                 proportion_x / proportion_y,
-                group.states[first_index].from_bottom,
+                group.states[0].from_bottom,
             );
-            group.states[first_index] = first_state;
-            group.states[last_index] = last_state;
+            group.states = vec![first_state, last_state];
         }
         let mut groups = self.project_state.get_groups();
         groups[editor_state.timeline_points.sprite_group_index] = group;
@@ -418,34 +436,24 @@ impl SpriteEditController {
     /*
     State Editor
      */
-    pub fn handle_input_change(&mut self, name: &str, value: &str) {
-        if let Some(mut future) = self.input_value_future.as_mut() {
-            future.cancel();
-        }
+    pub fn input_change(&mut self, name: &str, value: &str) {
         self.input_value.set((String::from(name), String::from(value)));
-        let c = self.clone();
-        let future = use_future(move || {
-            let mut c = c.clone();
-            async move {
-                TimeoutFuture::new(1000).await;
-                c.input_change();
-                c.input_value_future.set(None);
-            }
-        });
-        self.input_value_future.set(Some(future));
     }
 
-    fn input_change(&mut self) {
-        if let Some(cur_state) = self.state_memo.read().cloned() {
-            let (name, value) = self.input_value.read().cloned();
+    fn handle_input_change(&mut self, name: &str, value: &str) {
+        if name.is_empty() || value.is_empty() {
+            return;
+        }
+        if let Some(cur_state) = self.state_memo.peek().cloned() {
+            info!("Parameter '{name}' new value '{value}'");
             let mut new_sprite_state = cur_state.sprite_state;
             let num = value.parse::<f32>().unwrap_or_default();
-            match name.as_str() {
+            match name {
                 "offset" => new_sprite_state.offset = num,
                 "x" => new_sprite_state.x = num,
                 "y" => new_sprite_state.y = num,
                 "scale" => new_sprite_state.width = num,
-                "easing" => new_sprite_state.easing = map_str_to_easing(&value),
+                "easing" => new_sprite_state.easing = map_str_to_easing(value),
                 "y_axis" => {
                     let from_bottom = value == "Bottom";
                     if new_sprite_state.from_bottom != from_bottom {
@@ -497,12 +505,23 @@ impl SpriteEditController {
         false
     }
 
+    pub fn is_group_fixing_possible(&self) -> bool {
+        if let Some(state) = self.state_memo.read().as_ref() {
+            let group = self.project_state.get_group(state.timeline_points.sprite_group_index);
+            !group.is_fixed
+        } else {
+            false
+        }
+    }
+
     pub fn add_new_sprite_state(&mut self) {
         if let Some(engine) = self.engine.borrow().as_ref()
             && let Some(state) = self.state_memo.read().as_ref() {
             let mut groups = self.project_state.get_groups();
-            groups[state.timeline_points.sprite_group_index].states.push(state.sprite_state);
-            groups[state.timeline_points.sprite_group_index].states.sort_by(|a, b| a.offset.partial_cmp(&b.offset).unwrap_or(Ordering::Equal));
+            let group = &mut groups[state.timeline_points.sprite_group_index];
+            group.states.push(state.sprite_state);
+            group.states.sort_by(|a, b| a.offset.partial_cmp(&b.offset).unwrap_or(Ordering::Equal));
+            group.is_fixed = false;
             engine.set_scenario(GroupUtils::groups_to_sprites(&groups, engine));
             self.project_state.groups.replace(groups);
             self.groups_update.set(true);
@@ -522,6 +541,16 @@ impl SpriteEditController {
             self.project_state.groups.replace(groups);
             self.groups_update.set(true);
             self.state.set(None);
+        }
+    }
+
+    pub fn fix_group(&mut self, to_fix: bool) {
+        if let Some(engine) = self.engine.borrow().as_ref()
+            && let Some(state) = self.state_memo.read().as_ref() {
+            let mut group = self.project_state.get_group(state.timeline_points.sprite_group_index);
+            group.is_fixed = to_fix;
+            let (_, groups) = self.update_editor_state(state.clone(), state.sprite_state, group, engine, state.rect);
+            self.project_state.groups.replace(groups);
         }
     }
 }
