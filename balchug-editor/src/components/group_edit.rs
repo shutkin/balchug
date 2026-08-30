@@ -78,7 +78,7 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
                             oninput: move |e| {title.set(e.value());}
                         }
                     }
-                    if let SpriteData::Text(data) = group.data.clone() {
+                    if let SpriteData::Text(_) = group.data.clone() {
                         label {
                             "Text",
                             textarea {
