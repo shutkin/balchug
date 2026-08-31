@@ -18,9 +18,11 @@ pub fn Workspace(project_controller: ProjectController, resources_controller: Re
     if let Some(doc) = window().and_then(|window| window.document()) {
         let on_key = {
             let mut edit_controller = edit_controller.clone();
+            let mut resources_controller = resources_controller.clone();
             Closure::wrap(Box::new(move |e: web_sys::KeyboardEvent| {
                 if e.code() == "Escape" {
                     edit_controller.set_timeline_point(None);
+                    resources_controller.close_popups();
                     e.prevent_default();
                 }
             }) as Box<dyn FnMut(web_sys::KeyboardEvent)>)
@@ -162,7 +164,11 @@ fn TimelinePanel(controller: SpriteEditController, resources_controller: Resourc
         div {
             id: "sidebar_container_timeline",
             class: "panel-box",
-            TimeLine {controller: controller.clone(), resources_controller: resources_controller.clone()}
+            div {
+                id: "sidebar_timeline_container",
+                style: "overflow-x:auto;height:100%;",
+                TimeLine {controller: controller.clone(), resources_controller: resources_controller.clone()}
+            }
             StateEditor {controller: controller.clone()}
             GroupEditDialog {controller: resources_controller.clone()}
         }

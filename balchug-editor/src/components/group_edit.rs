@@ -55,9 +55,7 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
                             } else {
                                 c0.add_new_group_animation(&group);
                             }
-                            c0.get_image_adding_signal().set(None);
-                            c0.get_text_adding_open().set(false);
-                            c0.get_edit_group_signal().set(None);
+                            c0.close_popups();
                             e.prevent_default();
                         }
                     },

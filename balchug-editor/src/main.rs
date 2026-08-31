@@ -132,7 +132,6 @@ fn App() -> Element {
         if *c0.get_ready_signal().read() &&
             let Some(resp) = open_project_response.read().as_ref() {
             info!("Open project");
-            // Back: 243 216 240, Text: 42 5 61
             resources_clone.update_image_resources(resp.images_thumbs.clone(), resp.atlas.clone());
 
             project_state_clone.properties.set(resp.project_properties.clone());

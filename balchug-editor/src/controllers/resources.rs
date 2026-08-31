@@ -62,6 +62,12 @@ impl ResourcesController {
         self.edit_group_signal
     }
     
+    pub fn close_popups(&mut self) {
+        self.adding_image_id.set(None);
+        self.text_edit_open.set(false);
+        self.edit_group_signal.set(None);
+    }
+    
     pub async fn handle_upload(&mut self, files: Vec<FileData>) {
         if let Some(file_data) = files.first()
             && let Ok(bytes) = file_data.read_bytes().await {

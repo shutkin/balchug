@@ -61,7 +61,7 @@ impl Inertia {
         let mut target_sign_before = false;
         if let Some(target) = self.target {
             target_sign_before = target.value > self.value;
-            let target_factor = 600.0 / (1.0 + self.properties.viscosity as f32 * 0.07);
+            let target_factor = 600.0 / (1.0 + self.properties.viscosity as f32 * 0.05);
             self.speed += (target.value - self.value) * target_factor * elapsed;
         }
         self.value += self.speed * elapsed;

@@ -185,7 +185,7 @@ impl Server {
             format!("/tmp/balchug/{}/index.html", project.id),
             INDEX_HTML
                 .replace("{settings.name}", &project.props.name)
-                .replace("{settings.background_color}", &color),//"0, 0, 0"),
+                .replace("{settings.background_color}", &color),
         )?;
 
         let output = Command::new("trunk")

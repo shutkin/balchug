@@ -1,12 +1,12 @@
-use std::ops::{AddAssign, MulAssign};
+use crate::controllers::resources::ResourcesController;
+use crate::controllers::sprite_editor::SpriteEditController;
+use balchug_common::sprite::SpriteState;
 use dioxus::html::geometry::WheelDelta;
 use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
-use balchug_common::sprite::SpriteState;
-use crate::controllers::resources::ResourcesController;
-use crate::controllers::sprite_editor::SpriteEditController;
+use std::ops::{AddAssign, MulAssign};
 
-const LAYER_WIDTH: i32 = 24;
+const LAYER_WIDTH: usize = 24;
 
 #[derive(Copy, Clone, PartialEq)]
 struct TimeLineView {
@@ -44,35 +44,24 @@ pub fn TimeLine(controller: SpriteEditController, resources_controller: Resource
     let mut cursor_type = use_signal(|| "default".to_string());
     let selected_points_memo = use_memo(move || c0.get_selected_points());
     let points_store = Store::new(Vec::<TimeLinePoint>::default());
+    let titles = use_memo(move || c3.get_groups_titles());
 
+    let c_clone = controller.clone();
     let build_view = move || {
         let size = svg_size.read();
         TimeLineView {
             offset: *offset.read(),
             scale: *scale.read(),
-            width: size.0,
+            width: (titles.read().len() * LAYER_WIDTH) as f32,
             height: size.1,
         }
     };
 
-    let titles = use_memo(move || c3.get_groups_titles());
     rsx! {
-        div {
-            id: "timeline_titles",
-            class: "timeline-titles",
-            for (group_id, title) in titles.read().iter().enumerate() {
-                SpriteGroupControl {
-                    group_id,
-                    title,
-                    controller: c4.clone(),
-                    resources_controller: resources_controller.clone(),
-                }
-            }
-        }
         div {
             id: "timeline_body",
             class: "timeline-body",
-            style: "cursor: {cursor_type};",
+            style: "cursor:{cursor_type};width:{titles.read().len() * LAYER_WIDTH}px;height:100%;",
             onwheel: move |event| {
                 event.prevent_default();
                 if event.as_web_event().shift_key() {
@@ -97,6 +86,18 @@ pub fn TimeLine(controller: SpriteEditController, resources_controller: Resource
                 let point = find_point(event.as_ref(), &points_store.read());
                 c1.set_timeline_point(point);
             },
+            div {
+                id: "timeline_titles",
+                class: "timeline-titles",
+                for (group_id, title) in titles.read().iter().enumerate() {
+                    SpriteGroupControl {
+                        group_id,
+                        title,
+                        controller: c4.clone(),
+                        resources_controller: resources_controller.clone(),
+                    }
+                }
+            }
             svg {
                 id: "timeline_svg",
                 style: "height:100%;width:100%;",
@@ -243,7 +244,7 @@ fn build_offset_d(offset: f32, view: TimeLineView) -> String {
 }
 
 fn build_path_d(states: &[SpriteState], index: usize, view: TimeLineView, mut points_store: Store<Vec<TimeLinePoint>>) -> String {
-    let x = index as i32 * LAYER_WIDTH + LAYER_WIDTH / 2;
+    let x = index * LAYER_WIDTH + LAYER_WIDTH / 2;
     let points = states.iter().enumerate()
         .map(|(i, state)| (i, (state.offset - view.offset) * view.scale))
         .filter(|(_, y)| *y > 0.0 && *y < view.height)
