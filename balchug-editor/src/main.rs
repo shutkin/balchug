@@ -7,12 +7,12 @@ use crate::controllers::sprite_editor::SpriteEditController;
 use crate::controllers::storage::{KEY_PROJECT_ID, LocalStorage};
 use crate::controllers::updates_sender::{PinnedFuture, UpdatesHandler, UpdatesSender};
 use crate::states::project_state::{ProjectState, SpriteGroup};
-use balchug_common::api::OpenProjectResponse;
+use balchug_common::api::{OpenProjectResponse, ProjectProperties};
 use balchug_engine::BalchugEngine;
-use balchug_engine::settings::Settings;
 use dioxus::prelude::*;
 use std::cell::RefCell;
 use std::rc::Rc;
+use balchug_common::settings::{BalchugSettings, InertiaProperties};
 
 mod components;
 mod states;
@@ -37,6 +37,21 @@ impl UpdatesHandler<Vec<SpriteGroup>> for GroupsUpdateHandler {
 
     fn send(&self, value: Vec<SpriteGroup>) -> PinnedFuture<'_> {
         Box::pin(self.api.update_groups(value))
+    }
+}
+
+struct ProjectPropsUpdateHandler {
+    project_state: ProjectState,
+    api: Api,
+}
+
+impl UpdatesHandler<ProjectProperties> for ProjectPropsUpdateHandler {
+    fn collect(&self) -> Option<ProjectProperties> {
+        Some(self.project_state.properties.read().clone())
+    }
+    
+    fn send(&self, value: ProjectProperties) -> PinnedFuture<'_> {
+        Box::pin(self.api.update_project_properties(value))
     }
 }
 
@@ -75,6 +90,14 @@ fn App() -> Element {
         }
     );
     let groups_update_signal = groups_update_sender.start();
+    
+    let project_props_update_sender = UpdatesSender::new(
+        ProjectPropsUpdateHandler {
+            project_state: project_state.clone(),
+            api: api.clone(),
+        }
+    );
+    let project_props_update_signal = project_props_update_sender.start();
 
     // load font when assets url is known
     let api_clone = api.clone();
@@ -109,13 +132,18 @@ fn App() -> Element {
         if *c0.get_ready_signal().read() &&
             let Some(resp) = open_project_response.read().as_ref() {
             info!("Open project");
+            // Back: 243 216 240, Text: 42 5 61
             resources_clone.update_image_resources(resp.images_thumbs.clone(), resp.atlas.clone());
 
             project_state_clone.properties.set(resp.project_properties.clone());
 
             if let Some(engine) = engine_clone.borrow().as_ref() {
-                engine.update_settings(Settings {
+                engine.update_settings(BalchugSettings {
                     background_color: resp.project_properties.background_color,
+                    inertia_properties: InertiaProperties {
+                        inertion: resp.project_properties.inertion,
+                        viscosity: resp.project_properties.viscosity,
+                    },
                 });
 
                 let groups = resp.groups.iter().map(|group| SpriteGroup {
@@ -138,6 +166,7 @@ fn App() -> Element {
         api.clone(),
         project_state.clone(),
         engine.clone(),
+        project_props_update_signal,
     );
 
     rsx! {

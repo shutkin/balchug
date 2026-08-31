@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 wasm-bindgen = "0.2"
-web-sys = { version = "0.3", features = ["WebGl2RenderingContext", "WebGlProgram", "WebGlShader",
+web-sys = { version = "0.3", features = ["WebGl2RenderingContext", "WebGlContextAttributes", "WebGlProgram", "WebGlShader",
     "WebGlBuffer", "WebGlUniformLocation", "WebGlTexture", "HtmlImageElement", "HtmlCanvasElement",
     "Window", "Request", "Response", "AddEventListenerOptions", "TouchEvent", "TouchList",
     "Touch", "WheelEvent", "Element", "DomRect"] }

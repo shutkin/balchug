@@ -170,17 +170,23 @@ impl Server {
         let color = format!("{}, {}, {}", project.props.background_color[0], project.props.background_color[1], project.props.background_color[2]);
         std::fs::write(format!("/tmp/balchug/{}/Cargo.toml", project.id), CARGO_TOML)?;
         std::fs::write(format!("/tmp/balchug/{}/Trunk.toml", project.id), TRUNK_TOML)?;
-        std::fs::write(format!("/tmp/balchug/{}/src/lib.rs", project.id),
-                       LIB_CODE
-                           .replace("{atlas_hash}", &atlas_hash)
-                           .replace("{settings.background_color}", &color)
-                           .replace("{font.hash}", &font_hash))?;
+        std::fs::write(
+            format!("/tmp/balchug/{}/src/lib.rs", project.id),
+            LIB_CODE
+                .replace("{atlas_hash}", &atlas_hash)
+                .replace("{settings.background_color}", &color)
+                .replace("{font.hash}", &font_hash)
+                .replace("{viscosity}", &format!("{}", project.props.viscosity))
+                .replace("{inertion}", &format!("{}", project.props.inertion)),
+        )?;
         std::fs::write(format!("/tmp/balchug/{}/src/create_atlas.rs", project.id), atlas_code)?;
         std::fs::write(format!("/tmp/balchug/{}/src/create_scenario.rs", project.id), scenario_code)?;
-        std::fs::write(format!("/tmp/balchug/{}/index.html", project.id),
-                       INDEX_HTML
-                           .replace("{settings.name}", &project.props.name)
-                           .replace("{settings.background_color}", &color))?;
+        std::fs::write(
+            format!("/tmp/balchug/{}/index.html", project.id),
+            INDEX_HTML
+                .replace("{settings.name}", &project.props.name)
+                .replace("{settings.background_color}", &color),//"0, 0, 0"),
+        )?;
 
         let output = Command::new("trunk")
             .arg("build")

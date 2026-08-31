@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 use crate::atlas::Atlas;
 use crate::scenario::Scenario;
+use crate::settings::InertiaProperties;
 use crate::sprite::{SpriteData, SpriteState};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -29,14 +30,19 @@ pub struct ProjectProperties {
     pub name: String,
     pub background_color: [u8; 3],
     pub default_text_color: [u8; 3],
+    pub viscosity: u8,
+    pub inertion: u8,
 }
 
 impl Default for ProjectProperties {
     fn default() -> Self {
+        let inertia_props = InertiaProperties::default();
         Self {
             name: "Balchug Project".to_string(),
             background_color: [0, 0, 0],
             default_text_color: [255, 255, 255],
+            inertion: inertia_props.inertion,
+            viscosity: inertia_props.viscosity,
         }
     }
 }

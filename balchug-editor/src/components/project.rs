@@ -8,6 +8,8 @@ pub fn ProjectControl(controller: ProjectController) -> Element {
     let mut c0 = controller.clone();
     let mut c1 = controller.clone();
     let mut c2 = controller.clone();
+    let mut c3 = controller.clone();
+    let mut c4 = controller.clone();
 
     rsx! {
         section {
@@ -54,39 +56,77 @@ pub fn ProjectControl(controller: ProjectController) -> Element {
             }
             div {
                 id: "project_props_body",
-                class: "form-row",
-                label {
-                    "Name",
-                    input {
-                        r#type: "text",
-                        value: "{c0.get_project_name()}",
-                        onchange: move |event| {
-                            let name = event.value();
-                            c0.set_project_name(name);
+                class: "panel-body",
+                div {
+                    id: "project_props_colors",
+                    class: "form-row",
+                    label {
+                        "Name",
+                        input {
+                            r#type: "text",
+                            value: "{c0.get_project_name()}",
+                            onchange: move |event| {
+                                let name = event.value();
+                                c0.set_project_name(name);
+                            }
+                        }
+                    }
+                    label {
+                        "Background Color"
+                        input {
+                            r#type: "color",
+                            value: "{c1.get_background_color()}",
+                            oninput: move |event| {
+                                let color = event.value();
+                                c1.set_background_color(color);
+                            }
+                        }
+                    }
+                    label {
+                        "Text Color"
+                        input {
+                            r#type: "color",
+                            value: "{c2.get_text_color()}",
+                            oninput: move |event| {
+                                let color = event.value();
+                                c2.set_text_color(color);
+                            }
                         }
                     }
                 }
-                label {
-                    "Background Color"
-                    input {
-                        r#type: "color",
-                        value: "{c1.get_background_color()}",
-                        onchange: move |event| {
-                            let color = event.value();
-                            info!("Background color: {color}");
-                            c1.set_background_color(color);
+                div {
+                    id: "project_props_viscosity",
+                    class: "form-row",
+                    label {
+                        "Scroll Viscosity",
+                        input {
+                            id: "viscosity_range",
+                            r#type: "range",
+                            min: 0,
+                            max: 100,
+                            step: 5,
+                            value: "{c3.get_viscosity()}",
+                            oninput: move |event| {
+                                if let Ok(v) = event.value().parse::<u8>() {
+                                    c3.set_viscosity(v);
+                                }
+                            }
                         }
                     }
-                }
-                label {
-                    "Text Color"
-                    input {
-                        r#type: "color",
-                        value: "{c2.get_text_color()}",
-                        onchange: move |event| {
-                            let color = event.value();
-                            info!("Text color: {color}");
-                            c2.set_text_color(color);
+                    label {
+                        "Scroll Inertion",
+                        input {
+                            id: "inertion_range",
+                            r#type: "range",
+                            min: 0,
+                            max: 100,
+                            step: 5,
+                            value: "{c4.get_inertion()}",
+                            oninput: move |event| {
+                                if let Ok(v) = event.value().parse::<u8>() {
+                                    c4.set_inertion(v);
+                                }
+                            }
                         }
                     }
                 }

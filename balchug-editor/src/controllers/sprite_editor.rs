@@ -1,7 +1,7 @@
 use crate::components::timeline::{TimeLinePoint, TimeLinePoints};
 use crate::controllers::group_utils::GroupUtils;
 use crate::states::project_state::{ProjectState, SpriteGroup};
-use crate::states::sprite_editor::SpriteEditorState;
+use crate::states::sprite_editor::{EditorGuide, GuideDirection, SpriteEditorState};
 use balchug_common::F32Rect;
 use balchug_common::sprite::{Easing, SpriteData, SpriteState};
 use balchug_engine::{BalchugEngine, OffsetListener, STATE_OFFSET_LAG, start_engine};
@@ -49,6 +49,8 @@ pub fn map_easing_to_str(easing: Easing) -> &'static str {
         _ => EASING_LINEAR,
     }
 }
+
+const GUIDE_ZONE: f32 = 5.0;
 
 #[derive(Clone)]
 pub struct SpriteEditController {
@@ -162,6 +164,18 @@ impl SpriteEditController {
 
     pub fn get_cur_state(&self) -> Option<SpriteEditorState> {
         self.state_memo.read().cloned()
+    }
+
+    pub fn get_guide_lines(&self) -> Vec<(f32, f32, f32, f32)> {
+        let canvas_rect = self.canvas_rect.get();
+        self.state_memo.read().as_ref().map(|state| {
+            state.active_guides.iter().map(|guide| {
+                match guide.direction {
+                    GuideDirection::Horizonal => (guide.position, canvas_rect.y, 0.0, canvas_rect.height),
+                    GuideDirection::Vertical => (canvas_rect.x, guide.position, canvas_rect.width, 0.0),
+                }
+            }).collect::<Vec<_>>()
+        }).unwrap_or_default()
     }
 
     /*
@@ -281,6 +295,7 @@ impl SpriteEditController {
             parallax_factor: group.parallax_factor,
             sprite_state,
             rect,
+            active_guides: Vec::new(),
         }
     }
 
@@ -348,14 +363,16 @@ impl SpriteEditController {
         }
     }
 
-    pub fn set_sprite_rect(&mut self, mut new_rect: F32Rect, resize_horizontal: bool) {
+    pub fn set_sprite_rect(&mut self, new_rect: F32Rect, resize_horizontal: bool) {
         if let Some(engine) = self.engine.borrow().as_ref()
-            && let Some(state) = self.state_memo.read().cloned() {
+            && let Some(mut state) = self.state_memo.read().cloned() {
             let mut group = self.project_state.get_group(state.timeline_points.sprite_group_index);
 
             if let Some(sprite_state) = engine.interpolate_state(&group.states, state.sprite_state.offset, group.smooth_factor) {
                 let mut new_sprite_state = sprite_state;
                 let canvas_rect = self.canvas_rect.get();
+                let (mut new_rect, guides) = Self::guide_rect(new_rect, canvas_rect);
+                state.active_guides = guides;
 
                 if let SpriteData::Text(_) = &group.data && resize_horizontal {
                     group.max_width = new_rect.width / canvas_rect.width / sprite_state.scale;
@@ -378,6 +395,48 @@ impl SpriteEditController {
                 self.state.set(Some(state));
             }
         }
+    }
+    
+    fn guide_rect(mut rect: F32Rect, canvas_rect: F32Rect) -> (F32Rect, Vec<EditorGuide>) {
+        let mut guides = Vec::new();
+
+        let horizontal_guides = vec![
+            canvas_rect.x,
+            canvas_rect.x + canvas_rect.width * 0.5,
+            canvas_rect.x + canvas_rect.width
+        ];
+        for guide in horizontal_guides {
+            if (rect.x - guide).abs() < GUIDE_ZONE {
+                rect.x = guide;
+                guides.push(EditorGuide {direction: GuideDirection::Horizonal, position: guide});
+            } else if (rect.x + rect.width - guide).abs() < GUIDE_ZONE {
+                rect.x = guide - rect.width;
+                guides.push(EditorGuide {direction: GuideDirection::Horizonal, position: guide});
+            } else if (rect.x + rect.width * 0.5 - guide).abs() < GUIDE_ZONE {
+                rect.x = guide - rect.width * 0.5;
+                guides.push(EditorGuide {direction: GuideDirection::Horizonal, position: guide});
+            }
+        }
+        
+        let vertical_guides = vec![
+            canvas_rect.y,
+            canvas_rect.y + canvas_rect.height * 0.5,
+            canvas_rect.y + canvas_rect.height
+        ];
+        for guide in vertical_guides {
+            if (rect.y - guide).abs() < GUIDE_ZONE {
+                rect.y = guide;
+                guides.push(EditorGuide {direction: GuideDirection::Vertical, position: guide});
+            } else if (rect.y + rect.height - guide).abs() < GUIDE_ZONE {
+                rect.y = guide - rect.height;
+                guides.push(EditorGuide {direction: GuideDirection::Vertical, position: guide});
+            } else if (rect.y + rect.height * 0.5 - guide).abs() < GUIDE_ZONE {
+                rect.y = guide - rect.height * 0.5;
+                guides.push(EditorGuide {direction: GuideDirection::Vertical, position: guide});
+            }
+        }
+
+        (rect, guides)
     }
 
     fn update_editor_state(

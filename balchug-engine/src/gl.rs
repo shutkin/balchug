@@ -70,7 +70,6 @@ impl GlRenderer {
         void main() {
             vec4 texColor = texture(u_texture, v_texCoord);
             outColor = vec4(u_spriteColor.rgb, u_spriteColor.a * texColor.r);
-            //outColor = texture(u_texture, v_texCoord);
         }"#;
 
         let program = link_program(&gl, vert_code, frag_code)?;
@@ -137,6 +136,8 @@ impl GlRenderer {
     pub fn set_texture(&self, img: &HtmlImageElement) {
         self.texture_size.replace((img.width(), img.height()));
         self.gl.bind_texture(GL::TEXTURE_2D, Some(&self.texture));
+        self.gl.pixel_storei(GL::UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+        self.gl.pixel_storei(GL::UNPACK_FLIP_Y_WEBGL, 0);
         if let Err(err) = self.gl.tex_image_2d_with_u32_and_u32_and_html_image_element(
             GL::TEXTURE_2D, 0, GL::RGBA as i32, GL::RGBA, GL::UNSIGNED_BYTE, img
         ) {
@@ -150,6 +151,8 @@ impl GlRenderer {
     pub fn set_font_texture(&self, width: u32, height: u32, data: &[u8]) {
         self.font_size.replace((width, height));
         self.gl.bind_texture(GL::TEXTURE_2D, Some(&self.font_texture));
+        self.gl.pixel_storei(GL::UNPACK_PREMULTIPLY_ALPHA_WEBGL, 0);
+        self.gl.pixel_storei(GL::UNPACK_FLIP_Y_WEBGL, 0);
         self.gl.tex_image_2d_with_i32_and_i32_and_i32_and_format_and_type_and_u8_array_and_src_offset(
             GL::TEXTURE_2D, 0, GL::LUMINANCE as i32, width as i32, height as i32, 0,
             GL::LUMINANCE, GL::UNSIGNED_BYTE, data, 0

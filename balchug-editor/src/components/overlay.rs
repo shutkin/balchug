@@ -1,8 +1,8 @@
+use crate::controllers::sprite_editor::SpriteEditController;
+use balchug_common::F32Rect;
 use dioxus::html::geometry::ElementPoint;
 use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
-use balchug_common::F32Rect;
-use crate::controllers::sprite_editor::SpriteEditController;
 
 const GAP: f32 = 5.0;
 
@@ -86,6 +86,14 @@ pub fn PreviewOverlay(controller: SpriteEditController) -> Element {
                     stroke: "var(--accent-purple)",
                     stroke_width: "5",
                     d: build_rect_d(c2.get_cur_state().map(|s| s.rect).unwrap_or_default()),
+                },
+                for guide in c2.get_guide_lines() {
+                    path {
+                        fill: "none",
+                        stroke: "var(--accent-blue)",
+                        stroke_width: "1",
+                        d: build_guide_line(guide),
+                    }
                 }
             }
         }
@@ -149,4 +157,8 @@ fn check_rect_area(rect: F32Rect, point: ElementPoint) -> RectArea {
 fn build_rect_d(rect: F32Rect) -> String {
     format!("M{},{} h{} v{} h{} v{} z", rect.x as i32, rect.y as i32,
             rect.width as i32, rect.height as i32, -rect.width as i32, -rect.height as i32)
+}
+
+fn build_guide_line(guide: (f32, f32, f32, f32)) -> String {
+    format!("M{},{} l{},{}", guide.0, guide.1, guide.2, guide.3)
 }

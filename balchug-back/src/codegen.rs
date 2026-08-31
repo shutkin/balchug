@@ -68,7 +68,7 @@ pub fn animations_to_code(animations: &[SpriteAnimation]) -> Result<String, Comm
         for st in &a.states {
             write!(
                 code,
-                "SpriteState{{offset:{:?},x:{:?},y:{:?},from_bottom:{:?},width:{:?},color:{:?},easing:{}}},",
+                "SpriteState{{offset:{:?},x:{:?},y:{:?},from_bottom:{:?},scale:{:?},color:{:?},easing:{}}},",
                 st.offset,
                 st.x,
                 st.y,
@@ -99,7 +99,7 @@ fn easing(st: &SpriteState) -> &str {
 
 pub const CARGO_TOML: &str = r#"
 [package]
-name = "balchug-demo"
+name = "balchug-site"
 version = "0.1.0"
 edition = "2024"
 
@@ -115,6 +115,7 @@ web-sys = { version = "0.3", features = ["HtmlCanvasElement", "Window", "Documen
 
 pub const TRUNK_TOML: &str = r#"
 [build]
+public_url = "./"
 target = "index.html"
 release = true
 minify-html = "0.15.0"
@@ -125,7 +126,7 @@ pub const LIB_CODE: &str = r#"
 mod create_atlas;
 mod create_scenario;
 
-use balchug_engine::settings::Settings;
+use balchug_common::settings::{BalchugSettings, InertiaProperties};
 use wasm_bindgen::{JsCast, JsValue};
 use web_sys::{window, HtmlCanvasElement, Event};
 
@@ -137,8 +138,9 @@ pub fn run() -> Result<(), JsValue> {
         .ok_or(JsValue::from_str("Canvas element not found"))?
         .dyn_into::<HtmlCanvasElement>()?;
 
-    let settings = Settings {background_color: [{settings.background_color}]};
-    let engine = balchug_engine::start_engine(window.clone(), canvas, settings);
+    let inertia = InertiaProperties {viscosity: {viscosity}, inertion: {inertion}};
+    let settings = BalchugSettings {background_color: [{settings.background_color}], inertia_properties: inertia};
+    let engine = balchug_engine::start_engine(window.clone(), canvas, settings, None);
     let atlas = create_atlas::create_atlas();
     engine.set_atlas("assets/atlas-{atlas_hash}.webp", atlas);
     engine.set_font("assets/font-{font.hash}.otf");

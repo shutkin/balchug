@@ -3,7 +3,6 @@ use crate::fps::FpsCounter;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
 use crate::scenario::{scenario_letters, scenario_max_offset, scenario_text_size};
-use crate::settings::Settings;
 use crate::sprite_util::{SpriteUtil, scale_sprite_state};
 use crate::text_util::{TextUtil, measure_text_line};
 use balchug_common::F32Rect;
@@ -16,7 +15,8 @@ use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use wasm_bindgen::closure::Closure;
 use wasm_bindgen::{JsCast, JsValue};
-use web_sys::{AddEventListenerOptions, HtmlCanvasElement, HtmlImageElement, MouseEvent, Request, Response, TouchEvent, WebGl2RenderingContext, WheelEvent, Window, window};
+use web_sys::{window, AddEventListenerOptions, HtmlCanvasElement, HtmlImageElement, MouseEvent, Request, Response, TouchEvent, WebGl2RenderingContext, WebGlContextAttributes, WheelEvent, Window};
+use balchug_common::settings::{InertiaProperties, BalchugSettings};
 use crate::font::glyphs_render::prepare_glyphs;
 
 mod gl;
@@ -25,7 +25,6 @@ mod scenario;
 mod font;
 mod sprite_util;
 mod fps;
-pub mod settings;
 mod text_util;
 
 pub const STATE_OFFSET_LAG: f32 = 0.0333;
@@ -60,10 +59,15 @@ struct AppContext {
 }
 
 impl AppContext {
-    fn new(canvas_width: f32, canvas_height: f32, font_listener: Option<FontListener>) -> Self {
+    fn new(
+        canvas_width: f32,
+        canvas_height: f32,
+        inertia_properties: InertiaProperties,
+        font_listener: Option<FontListener>,
+    ) -> Self {
         AppContext {
             force_rerender: Rc::new(Cell::new(false)),
-            scroll: Rc::new(RefCell::new(Inertia::new(0.0))),
+            scroll: Rc::new(RefCell::new(Inertia::new(0.0, inertia_properties))),
             images_texture_ready: Rc::new(Cell::new(false)),
             txt_texture_ready: Rc::new(Cell::new(false)),
             atlas_items: Rc::new(RefCell::new(HashMap::default())),
@@ -210,9 +214,10 @@ impl BalchugEngine {
         }
     }
 
-    pub fn update_settings(&self, settings: Settings) {
+    pub fn update_settings(&self, settings: BalchugSettings) {
         let color = convert_color(settings.background_color);
         self.renderer.set_background_color(color);
+        self.context.scroll.borrow_mut().set_properties(settings.inertia_properties);
         self.context.force_rerender.set(true);
     }
 }
@@ -296,17 +301,25 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
     }
 }
 
-pub fn start_engine(window: Window, canvas: HtmlCanvasElement, settings: Settings, font_listener: Option<FontListener>) -> BalchugEngine {
+pub fn start_engine(
+    window: Window,
+    canvas: HtmlCanvasElement,
+    settings: BalchugSettings,
+    font_listener: Option<FontListener>,
+) -> BalchugEngine {
     wasm_logger::init(wasm_logger::Config::default());
 
     let pixel_ratio = window.device_pixel_ratio().max(2.0);
 
-    let gl = canvas.get_context("webgl2").unwrap().unwrap().dyn_into::<WebGl2RenderingContext>().unwrap();
+    let attr = WebGlContextAttributes::new();
+    attr.set_alpha(false);
+    let gl = canvas.get_context_with_context_options("webgl2", &attr)
+        .unwrap().unwrap().dyn_into::<WebGl2RenderingContext>().unwrap();
     let renderer = GlRenderer::init(gl, convert_color(settings.background_color)).unwrap();
     let (width, height) = (canvas.width(), canvas.height());
     renderer.set_sizes(width as f32, height as f32);
 
-    let ctx = AppContext::new(width as f32, height as f32, font_listener);
+    let ctx = AppContext::new(width as f32, height as f32, settings.inertia_properties, font_listener);
 
     let ctx_clone = ctx.clone();
     let renderer_clone = renderer.clone();

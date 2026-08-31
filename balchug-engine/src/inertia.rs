@@ -1,3 +1,5 @@
+use balchug_common::settings::InertiaProperties;
+
 #[derive(Copy, Clone)]
 struct InertiaTarget {
     value: f32,
@@ -11,16 +13,18 @@ pub struct Inertia {
     value: f32,
     target: Option<InertiaTarget>,
     speed: f32,
+    properties: InertiaProperties,
 }
 
 impl Inertia {
-    pub fn new(value: f32) -> Inertia {
+    pub fn new(value: f32, properties: InertiaProperties) -> Inertia {
         Inertia {
             value,
             target: None,
             speed: 0.0,
             limit_down: 0.0,
             limit_up: f32::INFINITY,
+            properties,
         }
     }
 
@@ -48,12 +52,16 @@ impl Inertia {
         }
     }
 
+    pub fn set_properties(&mut self, properties: InertiaProperties) {
+        self.properties = properties;
+    }
+
     pub fn live(&mut self, elapsed: f32) -> (bool, f32) {
         let prev_value = self.value;
         let mut target_sign_before = false;
         if let Some(target) = self.target {
             target_sign_before = target.value > self.value;
-            let target_factor = 500.0;
+            let target_factor = 600.0 / (1.0 + self.properties.viscosity as f32 * 0.07);
             self.speed += (target.value - self.value) * target_factor * elapsed;
         }
         self.value += self.speed * elapsed;
@@ -68,7 +76,11 @@ impl Inertia {
         } else if self.value > self.limit_up {
             self.value = self.limit_up;
         }
-        let friction_factor = if self.target.is_some() { 24.0 } else { 1.2 };
+        let friction_factor = if self.target.is_some() {
+            48.0
+        } else {
+            3.0 / (1.0 + self.properties.inertion as f32 * 0.035)
+        };
         self.speed /= 1.0 + elapsed * friction_factor;
         ((self.value - prev_value).abs() > 0.025, self.value)
     }

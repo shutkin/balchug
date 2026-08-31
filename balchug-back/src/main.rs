@@ -18,7 +18,7 @@ pub type CommonError = Box<dyn std::error::Error + Send + Sync>;
 
 fn internal_err(endpoint: &str, err: CommonError) -> actix_web::Error {
     error!("Error on {endpoint}: {err:?}");
-    ErrorInternalServerError(err)
+    ErrorInternalServerError("Internal Server Error")
 }
 
 #[get("/")]
