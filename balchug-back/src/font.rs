@@ -14,8 +14,12 @@ use balchug_common::sprite::SpriteData;
 use log::info;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-pub fn subset_font(font_path: &str, scenario: &[ProjectSpriteGroup]) -> Result<(Vec<u8>, String), CommonError> {
-    let scenario_chars = get_scenario_chars(scenario);
+pub fn subset_font(font_path: &str, scenario: &[ProjectSpriteGroup], font: usize) -> Result<Option<(Vec<u8>, String)>, CommonError> {
+    let scenario_chars = get_scenario_chars(scenario, font);
+    if scenario_chars.is_empty() {
+        return Ok(None);
+    }
+
     let mut hasher = DefaultHasher::new();
     scenario_chars.hash(&mut hasher);
     let hash = format!("{:x}", hasher.finish());
@@ -54,7 +58,7 @@ pub fn subset_font(font_path: &str, scenario: &[ProjectSpriteGroup]) -> Result<(
     let cmap_target = CmapTarget::Unicode;
     let new_font = subset::subset(&provider, &glyph_ids, &profile, cmap_target)?;
     info!("Subset font {} -> {}", buffer.len(), new_font.len());
-    Ok((new_font, hash))
+    Ok(Some((new_font, hash)))
 }
 
 fn chars_to_glyphs<F: FontTableProvider>(
@@ -103,10 +107,10 @@ fn make_glyph(
     }
 }
 
-fn get_scenario_chars(groups: &[ProjectSpriteGroup]) -> String {
+fn get_scenario_chars(groups: &[ProjectSpriteGroup], font: usize) -> String {
     let mut chars = Vec::new();
     for group in groups {
-        if let SpriteData::Text(data) = &group.data {
+        if let SpriteData::Text(data) = &group.data && data.font == font {
             data.text.chars().for_each(|ch| {
                 if !chars.contains(&ch) {
                     chars.push(ch);

@@ -47,6 +47,7 @@ pub struct SpriteImageData {
 
 #[derive(Clone, PartialEq, Serialize, Deserialize, Debug)]
 pub struct SpriteTextData {
+    pub font: usize,
     pub text: String,
     pub size: u8,
 }

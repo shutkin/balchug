@@ -5,6 +5,7 @@ use crate::font::subset_font;
 use crate::model::{BalchugProject, ProjectGuard};
 use balchug_common::api::{ProjectProperties, ProjectSpriteGroup};
 use balchug_common::atlas::Atlas;
+use balchug_common::scenario::Scenario;
 use log::{error, info};
 use rand::distr::{Alphanumeric, SampleString};
 use std::collections::HashMap;
@@ -14,7 +15,6 @@ use tokio::sync::Semaphore;
 use zip::CompressionMethod;
 use zip::write::SimpleFileOptions;
 use zip_extensions::zip_writer::zip_create_from_directory_with_options;
-use balchug_common::scenario::Scenario;
 
 const STORE_DIR: &str = "./store";
 
@@ -81,7 +81,9 @@ impl Server {
         std::fs::create_dir(format!("{STORE_DIR}/{}", project.id))?;
         std::fs::create_dir(format!("{STORE_DIR}/{}/image", project.id))?;
         std::fs::create_dir(format!("{STORE_DIR}/{}/thumb", project.id))?;
-        std::fs::copy("./font.otf", format!("{STORE_DIR}/{}/font.otf", project.id))?;
+        std::fs::copy("./regular.otf", format!("{STORE_DIR}/{}/regular.otf", project.id))?;
+        std::fs::copy("./bold.otf", format!("{STORE_DIR}/{}/bold.otf", project.id))?;
+        std::fs::copy("./italic.otf", format!("{STORE_DIR}/{}/italic.otf", project.id))?;
         create_empty_atlas(&format!("{STORE_DIR}/{}/atlas.webp", project.id))?;
         self.put_project(project.clone())?;
         Ok(project)
@@ -162,8 +164,19 @@ impl Server {
         let atlas_hash = atlas_hash(&atlas_optimized);
         std::fs::write(format!("/tmp/balchug/{}/assets/atlas-{}.webp", project.id, atlas_hash), webp)?;
 
-        let (font, font_hash) = subset_font("./font.otf", &project.groups)?;
-        std::fs::write(format!("/tmp/balchug/{}/assets/font-{}.otf", project.id, font_hash), font)?;
+        let mut fonts = Vec::new();
+        if let Some((font, font_hash)) = subset_font("./regular.otf", &project.groups, 0)? {
+            std::fs::write(format!("/tmp/balchug/{}/assets/regular-{font_hash}.otf", project.id), font)?;
+            fonts.push(format!("assets/regular-{font_hash}.otf"))
+        }
+        if let Some((font, font_hash)) = subset_font("./bold.otf", &project.groups, 1)? {
+            std::fs::write(format!("/tmp/balchug/{}/assets/bold-{font_hash}.otf", project.id), font)?;
+            fonts.push(format!("assets/bold-{font_hash}.otf"))
+        }
+        if let Some((font, font_hash)) = subset_font("./italic.otf", &project.groups, 2)? {
+            std::fs::write(format!("/tmp/balchug/{}/assets/italic-{font_hash}.otf", project.id), font)?;
+            fonts.push(format!("assets/italic-{font_hash}.otf"))
+        }
 
         let atlas_code = atlas_to_code(&atlas_optimized)?;
         let scenario_code = animations_to_code(&scenario.sprites)?;
@@ -175,7 +188,7 @@ impl Server {
             LIB_CODE
                 .replace("{atlas_hash}", &atlas_hash)
                 .replace("{settings.background_color}", &color)
-                .replace("{font.hash}", &font_hash)
+                .replace("{fonts}", &fonts.join(","))
                 .replace("{viscosity}", &format!("{}", project.props.viscosity))
                 .replace("{inertion}", &format!("{}", project.props.inertion)),
         )?;

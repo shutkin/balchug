@@ -77,11 +77,11 @@ impl GroupUtils {
     }
 
     fn split_text(data: &SpriteTextData, group: &SpriteGroup, engine: &BalchugEngine) -> Vec<Vec<(String, f32)>> {
-        let space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size: data.size }, 1.0).0;
+        let space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size: data.size, font: data.font }, 1.0).0;
         let words = data.text.split(' ')
             .filter(|word| !word.is_empty())
             .map(|word| {
-                let word_data = SpriteTextData { text: word.to_string(), size: data.size };
+                let word_data = SpriteTextData { text: word.to_string(), size: data.size, font: data.font };
                 let width = engine.measure_text(&word_data, 1.0).0;
                 (word.to_string(), width)
             })
@@ -115,7 +115,7 @@ impl GroupUtils {
         engine: &BalchugEngine,
     ) -> Vec<SpriteAnimation> {
         let mut sprite_id = start_id;
-        let font_space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size: data.size }, 1.0).0;
+        let font_space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size: data.size, font: data.font }, 1.0).0;
         let last_line = lines.len() - 1;
         lines.into_iter().enumerate()
             .flat_map(|(line_index, words)| {
@@ -131,7 +131,7 @@ impl GroupUtils {
                     .map(|(word, word_width)| {
                         let sprite = SpriteAnimation {
                             sprite_id,
-                            data: SpriteData::Text(SpriteTextData { text: word, size: data.size }),
+                            data: SpriteData::Text(SpriteTextData { text: word, size: data.size, font: data.font }),
                             states: Self::translate_states(&group.states, dx, dy),
                             smooth_factor: group.smooth_factor,
                         };

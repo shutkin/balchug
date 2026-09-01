@@ -23,7 +23,12 @@ pub struct GlyphData {
     pub img: GlyphImage,
 }
 
-pub fn prepare_glyphs(letters: &str, font_data: &[u8], text_size: f32) -> Result<(FontData, Vec<GlyphImage>), Box<dyn std::error::Error>> {
+pub fn prepare_glyphs(
+    letters: &str,
+    font_data: &[u8],
+    text_size: f32,
+    start_id: usize,
+) -> Result<(FontData, Vec<GlyphImage>), Box<dyn std::error::Error>> {
     let font = FontRef::try_from_slice(font_data)?;
     let font_scaled = font.as_scaled(text_size);
 
@@ -41,7 +46,7 @@ pub fn prepare_glyphs(letters: &str, font_data: &[u8], text_size: f32) -> Result
                 h_advance: sprite.h_advance,
                 offset_x: sprite.offset_x,
                 offset_y: sprite.offset_y,
-                item_id: images.len(),
+                item_id: images.len() + start_id,
             });
             images.push(sprite.img);
         }

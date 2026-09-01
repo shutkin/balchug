@@ -104,9 +104,14 @@ fn App() -> Element {
     let engine_clone = engine.clone();
     use_effect(move || {
         if project_is_ready.read().unwrap_or(false) {
-            let font_url = api_clone.assets_url("font.otf");
+            let urls = [
+                api_clone.assets_url("regular.otf"),
+                api_clone.assets_url("bold.otf"),
+                api_clone.assets_url("italic.otf"),
+            ];
+            let urls_str = urls.iter().map(String::as_str).collect::<Vec<_>>();
             if let Some(engine) = engine_clone.borrow().as_ref() {
-                engine.set_font(&font_url);
+                engine.set_fonts(&urls_str);
             }
         }
     });

@@ -1,4 +1,4 @@
-use crate::font::font_builder::build_font;
+use crate::font::font_builder::{build_fonts, BuildFontTask};
 use crate::fps::FpsCounter;
 use crate::gl::GlRenderer;
 use crate::inertia::Inertia;
@@ -44,8 +44,8 @@ struct AppContext {
     txt_texture_ready: Rc<Cell<bool>>,
     atlas_items: Rc<RefCell<HashMap<usize, AtlasItem>>>,
     font_atlas_items: Rc<RefCell<HashMap<usize, AtlasItem>>>,
-    font: Rc<RefCell<FontData>>,
-    font_bytes: Rc<RefCell<Vec<u8>>>,
+    fonts: Rc<RefCell<Vec<FontData>>>,
+    fonts_bytes: Rc<RefCell<Vec<Vec<u8>>>>,
     font_listener: Rc<Cell<Option<FontListener>>>,
     scenario: Rc<RefCell<Scenario>>,
     canvas_width: Rc<Cell<f32>>,
@@ -73,9 +73,9 @@ impl AppContext {
             atlas_items: Rc::new(RefCell::new(HashMap::default())),
             font_atlas_items: Rc::new(RefCell::new(HashMap::default())),
             scenario: Rc::new(RefCell::new(Scenario::default())),
-            font: Rc::new(RefCell::new(FontData::default())),
+            fonts: Rc::new(RefCell::new(Vec::new())),
             font_listener: Rc::new(Cell::new(font_listener)),
-            font_bytes: Rc::new(RefCell::new(Vec::new())),
+            fonts_bytes: Rc::new(RefCell::new(Vec::new())),
             canvas_width: Rc::new(Cell::new(canvas_width)),
             sprite_util: Rc::new(Cell::new(SpriteUtil::new(canvas_width, canvas_height))),
             text_util: Rc::new(Cell::new(TextUtil::new(canvas_width, canvas_height))),
@@ -131,13 +131,13 @@ impl BalchugEngine {
         self.context.scroll.borrow().get_value() / self.context.canvas_width.get()
     }
 
-    pub fn set_atlas(&self, img_url: &str, atlas: Atlas) {
-        load_images_texture(&self.context, &self.renderer, img_url);
+    pub fn set_atlas(&self, url: &str, atlas: Atlas) {
+        load_images_texture(&self.context, &self.renderer, url);
         self.context.atlas_items.replace(atlas.items);
     }
 
-    pub fn set_font(&self, img_url: &str) {
-        load_font(&self.context, &self.renderer, img_url)
+    pub fn set_fonts(&self, urls: &[&str]) {
+        load_fonts(&self.context, &self.renderer, urls)
     }
 
     pub fn set_scenario(&self, sprites: Vec<SpriteAnimation>) {
@@ -167,7 +167,7 @@ impl BalchugEngine {
         let width = self.context.canvas_width.get();
         let max_scroll = scenario_max_offset(&self.context.scenario.borrow()) * width;
         self.context.scroll.borrow_mut().set_limit_up(max_scroll);
-        rebuild_font(&self.context, &self.renderer);
+        run_build_fonts(&self.context, &self.renderer);
         self.context.force_rerender.set(true);
     }
 
@@ -186,19 +186,19 @@ impl BalchugEngine {
 
     pub fn measure_text(&self, data: &SpriteTextData, scale: f32) -> (f32, f32) {
         if data.text == " " {
-            return measure_text_line(&data.text, data.size, scale, &self.context.font.borrow());
+            return measure_text_line(&data.text, data.size, scale, &self.context.fonts.borrow()[data.font]);
         }
 
-        let mut letters = scenario_letters(&self.context.scenario.borrow());
+        let mut letters = scenario_letters(&self.context.scenario.borrow(), data.font);
         let new_letters = data.text.chars()
             .filter(|c| !letters.contains(&c.to_string()))
             .collect::<String>();
         letters.push_str(&new_letters);
 
         let new_font_data = if !new_letters.is_empty() {
-            let bytes = self.context.font_bytes.borrow();
+            let bytes = &self.context.fonts_bytes.borrow()[data.font];
             let font_size = data.size as f32 * TEXT_SIZE_FACTOR;
-            if let Ok((font_data, _)) = prepare_glyphs(&letters, &bytes, font_size) {
+            if let Ok((font_data, _)) = prepare_glyphs(&letters, bytes, font_size, 0) {
                 Some(font_data)
             } else {
                 None
@@ -210,7 +210,7 @@ impl BalchugEngine {
         if let Some(font_data) = new_font_data {
             measure_text_line(&data.text, data.size, scale, &font_data)
         } else {
-            measure_text_line(&data.text, data.size, scale, &self.context.font.borrow())
+            measure_text_line(&data.text, data.size, scale, &self.context.fonts.borrow()[data.font])
         }
     }
 
@@ -263,7 +263,9 @@ fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) 
                     });
                 }
                 SpriteData::Text(text_data) => {
-                    for glyph_sprite in text_util.arrange_text_line(text_data, &cur_state, &ctx.font.borrow(), &ctx.font_atlas_items.borrow()) {
+                    let font = &ctx.fonts.borrow()[text_data.font];
+                    let atlas = &ctx.font_atlas_items.borrow();
+                    for glyph_sprite in text_util.arrange_text_line(text_data, &cur_state, font, atlas) {
                         let glyph_sprite = Sprite {
                             state: scale_sprite_state(&glyph_sprite.state, width),
                             atlas_item: glyph_sprite.atlas_item,
@@ -480,60 +482,77 @@ fn load_images_texture(ctx: &AppContext, renderer: &GlRenderer, img_url: &str) {
     on_load.forget();
 }
 
-fn load_font(ctx: &AppContext, renderer: &GlRenderer, font_url: &str) {
-    match Request::new_with_str(font_url) {
-        Ok(req) => {
-            ctx.txt_texture_ready.set(false);
-            let on_response = {
-                let ctx = ctx.clone();
-                let renderer = renderer.clone();
-                let on_body = {
-                    Closure::wrap(Box::new(move |buf_value: JsValue| {
-                        let bytes = js_sys::Uint8Array::new(&buf_value).to_vec();
-                        info!("Load font {} bytes", bytes.len());
-                        ctx.font_bytes.replace(bytes);
-                        rebuild_font(&ctx, &renderer);
+fn load_fonts(ctx: &AppContext, renderer: &GlRenderer, urls: &[&str]) {
+    let count = Rc::new(Cell::new(urls.len()));
+    info!("Loading {} fonts...", urls.len());
+    ctx.fonts.replace(vec![FontData::default(); urls.len()]);
+    ctx.fonts_bytes.replace(vec![Vec::new(); urls.len()]);
+    for (index, &url) in urls.iter().enumerate() {
+        match Request::new_with_str(url) {
+            Ok(req) => {
+                ctx.txt_texture_ready.set(false);
+                let on_response = {
+                    let ctx = ctx.clone();
+                    let renderer = renderer.clone();
+                    let count = count.clone();
+                    let on_body = {
+                        Closure::wrap(Box::new(move |buf_value: JsValue| {
+                            let bytes = js_sys::Uint8Array::new(&buf_value).to_vec();
+                            info!("Load font {} bytes", bytes.len());
+                            ctx.fonts_bytes.borrow_mut()[index] = bytes;
+                            let cur_count = count.get() - 1;
+                            count.replace(cur_count);
+                            if cur_count == 0 {
+                                run_build_fonts(&ctx, &renderer);
+                            }
+                        }) as Box<dyn FnMut(JsValue)>)
+                    };
+                    Closure::wrap(Box::new(move |result: JsValue| {
+                        let response: Response = result.dyn_into().unwrap();
+                        if let Ok(promise) = response.array_buffer() {
+                            let _ = promise.then(&on_body);
+                        }
                     }) as Box<dyn FnMut(JsValue)>)
                 };
-                Closure::wrap(Box::new(move |result: JsValue| {
-                    let response: Response = result.dyn_into().unwrap();
-                    if let Ok(promise) = response.array_buffer() {
-                        let _ = promise.then(&on_body);
-                    }
-                }) as Box<dyn FnMut(JsValue)>)
-            };
-            if let Some(window) = window() {
-                let _ = window.fetch_with_request(&req).then(&on_response);
+                if let Some(window) = window() {
+                    let _ = window.fetch_with_request(&req).then(&on_response);
+                }
+                on_response.forget();
             }
-            on_response.forget();
-        }
-        Err(err) => {
-            error!("Error make font request: {err:?}");
+            Err(err) => {
+                error!("Error make font request: {err:?}");
+            }
         }
     }
 }
 
-fn rebuild_font(ctx: &AppContext, renderer: &GlRenderer) {
-    let bytes = ctx.font_bytes.borrow();
+fn run_build_fonts(ctx: &AppContext, renderer: &GlRenderer) {
+    let bytes = ctx.fonts_bytes.borrow().clone();
     if bytes.is_empty() {
         return;
     }
 
-    let letters = scenario_letters(&ctx.scenario.borrow());
-    let known_letters = ctx.font.borrow().glyphs.keys().cloned().collect::<HashSet<_>>();
     let listener = ctx.font_listener.take();
-    if listener.is_some() || letters.chars().any(|c| c != ' ' && !known_letters.contains(&c)) {
-        let font_size = scenario_text_size(&ctx.scenario.borrow(), ctx.canvas_width.get());
-        info!("Font size: {font_size}");
-        if let Some(res) = build_font(&letters, &bytes, font_size) {
-            ctx.font.replace(res.font_data);
-            if !letters.is_empty() {
-                renderer.set_font_texture(res.atlas.width, res.atlas.height, &res.data);
-                ctx.font_atlas_items.replace(res.atlas.items);
-                ctx.txt_texture_ready.replace(true);
-                ctx.force_rerender.set(true);
-            }
+    let mut font_tasks = Vec::new();
+    for (font_index, font_bytes) in bytes.iter().enumerate() {
+        let letters = scenario_letters(&ctx.scenario.borrow(), font_index);
+        let known_letters = ctx.fonts.borrow()[font_index].glyphs.keys().cloned().collect::<HashSet<_>>();
+        if listener.is_some() || letters.chars().any(|c| c != ' ' && !known_letters.contains(&c)) {
+            let size = scenario_text_size(&ctx.scenario.borrow(), ctx.canvas_width.get());
+            info!("Font {font_index} size: {size}");
+            let task = BuildFontTask { font_index, font_bytes, letters, size };
+            font_tasks.push(task);
         }
+    }
+    
+    if let Some(res) = build_fonts(&font_tasks) {
+        for (index, font) in res.fonts_data {
+            ctx.fonts.borrow_mut()[index] = font;
+        }
+        renderer.set_font_texture(res.atlas.width, res.atlas.height, &res.data);
+        ctx.font_atlas_items.replace(res.atlas.items);
+        ctx.txt_texture_ready.replace(true);
+        ctx.force_rerender.set(true);
     }
     if let Some(mut listener) = listener {
         listener();

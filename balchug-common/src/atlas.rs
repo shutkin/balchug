@@ -29,6 +29,7 @@ impl Default for Atlas {
     }
 }
 
+#[derive(Copy, Clone)]
 pub struct FontGlyph {
     pub item_id: usize,
     pub h_advance: f32,
@@ -36,7 +37,7 @@ pub struct FontGlyph {
     pub offset_y: f32,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct FontData {
     pub ascend: f32,
     pub height: f32,

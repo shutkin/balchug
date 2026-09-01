@@ -57,7 +57,8 @@ pub fn animations_to_code(animations: &[SpriteAnimation]) -> Result<String, Comm
             SpriteData::Text(txt) => {
                 write!(
                     code,
-                    "SpriteData::Text(SpriteTextData{{text:{:?}.to_string(),size:{:?}}})",
+                    "SpriteData::Text(SpriteTextData{{font:{},text:{:?}.to_string(),size:{:?}}})",
+                    txt.font,
                     txt.text,
                     txt.size
                 )?;
@@ -143,7 +144,7 @@ pub fn run() -> Result<(), JsValue> {
     let engine = balchug_engine::start_engine(window.clone(), canvas, settings, None);
     let atlas = create_atlas::create_atlas();
     engine.set_atlas("assets/atlas-{atlas_hash}.webp", atlas);
-    engine.set_font("assets/font-{font.hash}.otf");
+    engine.set_fonts(&[{fonts}]);
     engine.set_scenario(create_scenario::create_animations());
 
     let on_resize = {

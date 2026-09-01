@@ -17,7 +17,7 @@ impl SpriteGroup {
     pub fn new_text() -> Self {
         Self {
             title: String::new(),
-            data: SpriteData::Text(SpriteTextData {text: String::new(), size: 15}),
+            data: SpriteData::Text(SpriteTextData {text: String::new(), size: 15, font: 0}),
             parallax_factor: 1.0,
             smooth_factor: 0.5,
             max_width: 1.0,

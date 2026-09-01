@@ -34,10 +34,10 @@ pub fn scenario_text_size(scenario: &Scenario, canvas_size: f32) -> f32 {
     }
 }
 
-pub fn scenario_letters(scenario: &Scenario) -> String {
+pub fn scenario_letters(scenario: &Scenario, font_index: usize) -> String {
     let mut letters = HashSet::new();
     for sprite in &scenario.sprites {
-        if let SpriteData::Text(data) = &sprite.data {
+        if let SpriteData::Text(data) = &sprite.data && data.font == font_index {
             data.text.chars().for_each(|letter| { letters.insert(letter); });
         }
     }
