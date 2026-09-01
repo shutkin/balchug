@@ -110,14 +110,15 @@ impl SpriteEditController {
                 let mut prev_value = String::new();
                 let mut prev_value_tick = 0_u16;
                 loop {
-                    TimeoutFuture::new(100).await;
+                    TimeoutFuture::new(50).await;
                     let (mut name, mut value) = clone.input_value.peek().cloned();
                     if name != prev_name && !prev_name.is_empty() {
                         clone.handle_input_change(&prev_name, &prev_value)
                     } else {
                         if value == prev_value {
                             prev_value_tick += 1;
-                            if prev_value_tick > 5 {                                clone.handle_input_change(&name, &value);
+                            if prev_value_tick > 6 {
+                                clone.handle_input_change(&name, &value);
                                 name = String::default();
                                 value = String::default();
                                 clone.input_value.set((name.clone(), value.clone()));
@@ -417,7 +418,7 @@ impl SpriteEditController {
                 guides.push(EditorGuide {direction: GuideDirection::Horizonal, position: guide});
             }
         }
-        
+
         let vertical_guides = vec![
             canvas_rect.y,
             canvas_rect.y + canvas_rect.height * 0.5,
@@ -508,7 +509,6 @@ impl SpriteEditController {
             return;
         }
         if let Some(cur_state) = self.state_memo.peek().cloned() {
-            info!("Parameter '{name}' new value '{value}'");
             let mut new_sprite_state = cur_state.sprite_state;
             let num = value.parse::<f32>().unwrap_or_default();
             match name {

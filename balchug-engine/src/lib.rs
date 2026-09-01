@@ -233,26 +233,10 @@ fn convert_color(color_u8: [u8; 3]) -> [f32; 3] {
 fn animate_scene(ctx: &AppContext, renderer: &GlRenderer, current_time_ms: f64) {
     let last_time_ms = ctx.last_frame.get();
     let elapsed_ms = current_time_ms - last_time_ms;
-
-    // Target 60 FPS (~16.67ms per frame)
-    const FRAME_DURATION_MS: f64 = 1000.0 / 60.0;
-
-    // If the mobile screen is running at 120Hz, skip every other frame
-    // to maintain a perfectly uniform rendering cadence.
-    if elapsed_ms < FRAME_DURATION_MS {
-        return;
-    }
-
-    // Lock the delta to prevent timestamp rounding jitter from Chrome
-    // and adjust for slight fractional drift.
-    ctx.last_frame.set(current_time_ms - (elapsed_ms % FRAME_DURATION_MS));
-
-    // Convert fixed frame duration to seconds for your physics engine (0.016666)
-    let fixed_elapsed_secs = (FRAME_DURATION_MS / 1000.0) as f32;
-
+    ctx.last_frame.set(current_time_ms);
     let now = instant::Instant::now();
 
-    let (updated, offset) = ctx.scroll.borrow_mut().live(fixed_elapsed_secs);
+    let (updated, offset) = ctx.scroll.borrow_mut().live(elapsed_ms as f32 / 1000.0);
     if !updated && !ctx.force_rerender.get() {
         ctx.fps.borrow_mut().new_frame(now, false);
         return;
@@ -465,6 +449,8 @@ pub fn start_engine(
     if let Err(err) = window.request_animation_frame(on_frame.borrow().as_ref().unchecked_ref()) {
         error!("Request first animation frame failed: {err:?}");
     }
+
+    renderer.render(&[], &[]);
 
     BalchugEngine {
         pixel_ratio: pixel_ratio as f32,
