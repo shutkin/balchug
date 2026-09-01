@@ -166,7 +166,7 @@ fn TimelinePanel(controller: SpriteEditController, resources_controller: Resourc
             class: "panel-box",
             div {
                 id: "sidebar_timeline_container",
-                style: "overflow-x:auto;height:100%;",
+                class: "timeline-container",
                 TimeLine {controller: controller.clone(), resources_controller: resources_controller.clone()}
             }
             StateEditor {controller: controller.clone()}

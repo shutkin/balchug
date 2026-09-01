@@ -243,7 +243,11 @@ body {
 .timeline-body {
     flex: 1;
     overflow-y: hidden;
+}
+
+.timeline-container {
     overflow-x: auto;
+    height: 100%;
 }
 
 .timeline-titles {
@@ -470,13 +474,13 @@ input[type="color"] {
 }
 
 /* Custom Scrollbar Polish */
-.timeline-body::-webkit-scrollbar {
+.timeline-container::-webkit-scrollbar {
     width: 4px;
 }
-.timeline-body::-webkit-scrollbar-track {
+.timeline-container::-webkit-scrollbar-track {
     background: var(--bg-dark);
 }
-.timeline-body::-webkit-scrollbar-thumb {
+.timeline-container::-webkit-scrollbar-thumb {
     background: var(--border-color);
     border-radius: 2px;
 }
