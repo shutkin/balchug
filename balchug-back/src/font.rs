@@ -9,12 +9,11 @@ use allsorts::tables::FontTableProvider;
 use allsorts::tables::cmap::{Cmap, CmapSubtable};
 use allsorts::tinyvec::tiny_vec;
 use allsorts::unicode::VariationSelector;
-use balchug_common::api::ProjectSpriteGroup;
-use balchug_common::sprite::SpriteData;
+use balchug_common::sprite::{SpriteAnimation, SpriteData};
 use log::info;
 use std::hash::{DefaultHasher, Hash, Hasher};
 
-pub fn subset_font(font_path: &str, scenario: &[ProjectSpriteGroup], font: usize) -> Result<Option<(Vec<u8>, String)>, CommonError> {
+pub fn subset_font(font_path: &str, scenario: &[SpriteAnimation], font: usize) -> Result<Option<(Vec<u8>, String)>, CommonError> {
     let scenario_chars = get_scenario_chars(scenario, font);
     if scenario_chars.is_empty() {
         return Ok(None);
@@ -107,7 +106,7 @@ fn make_glyph(
     }
 }
 
-fn get_scenario_chars(groups: &[ProjectSpriteGroup], font: usize) -> String {
+fn get_scenario_chars(groups: &[SpriteAnimation], font: usize) -> String {
     let mut chars = Vec::new();
     for group in groups {
         if let SpriteData::Text(data) = &group.data && data.font == font {

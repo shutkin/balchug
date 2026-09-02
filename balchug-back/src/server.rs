@@ -165,17 +165,17 @@ impl Server {
         std::fs::write(format!("/tmp/balchug/{}/assets/atlas-{}.webp", project.id, atlas_hash), webp)?;
 
         let mut fonts = Vec::new();
-        if let Some((font, font_hash)) = subset_font("./regular.otf", &project.groups, 0)? {
+        if let Some((font, font_hash)) = subset_font(&format!("{STORE_DIR}/{}/regular.otf", project.id), &scenario.sprites, 0)? {
             std::fs::write(format!("/tmp/balchug/{}/assets/regular-{font_hash}.otf", project.id), font)?;
-            fonts.push(format!("assets/regular-{font_hash}.otf"))
+            fonts.push(format!("\"assets/regular-{font_hash}.otf\""))
         }
-        if let Some((font, font_hash)) = subset_font("./bold.otf", &project.groups, 1)? {
+        if let Some((font, font_hash)) = subset_font(&format!("{STORE_DIR}/{}/bold.otf", project.id), &scenario.sprites, 1)? {
             std::fs::write(format!("/tmp/balchug/{}/assets/bold-{font_hash}.otf", project.id), font)?;
-            fonts.push(format!("assets/bold-{font_hash}.otf"))
+            fonts.push(format!("\"assets/bold-{font_hash}.otf\""))
         }
-        if let Some((font, font_hash)) = subset_font("./italic.otf", &project.groups, 2)? {
+        if let Some((font, font_hash)) = subset_font(&format!("{STORE_DIR}/{}/italic.otf", project.id), &scenario.sprites, 2)? {
             std::fs::write(format!("/tmp/balchug/{}/assets/italic-{font_hash}.otf", project.id), font)?;
-            fonts.push(format!("assets/italic-{font_hash}.otf"))
+            fonts.push(format!("\"assets/italic-{font_hash}.otf\""))
         }
 
         let atlas_code = atlas_to_code(&atlas_optimized)?;

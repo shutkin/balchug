@@ -46,7 +46,6 @@ pub fn TimeLine(controller: SpriteEditController, resources_controller: Resource
     let points_store = Store::new(Vec::<TimeLinePoint>::default());
     let titles = use_memo(move || c3.get_groups_titles());
 
-    let c_clone = controller.clone();
     let build_view = move || {
         let size = svg_size.read();
         TimeLineView {

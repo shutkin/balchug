@@ -28,7 +28,7 @@ mod fps;
 mod text_util;
 
 pub const STATE_OFFSET_LAG: f32 = 0.0333;
-pub const TEXT_SIZE_FACTOR: f32 = 0.002;
+pub const TEXT_SIZE_FACTOR: f32 = 0.0023;
 
 pub trait OffsetListener {
     fn offset_change(&mut self, offset: f32);

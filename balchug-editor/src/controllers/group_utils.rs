@@ -1,6 +1,7 @@
 use crate::states::project_state::SpriteGroup;
 use balchug_common::sprite::{SpriteAnimation, SpriteData, SpriteState, SpriteTextData};
 use balchug_engine::{BalchugEngine, TEXT_SIZE_FACTOR};
+use crate::controllers::text_utils::mark_str;
 
 pub struct GroupUtils;
 
@@ -54,7 +55,7 @@ impl GroupUtils {
                 }],
                 SpriteData::Text(data) => {
                     let lines = Self::split_text(&data, group, engine);
-                    Self::create_text_sprites(lines, &data, group, sprites.len(), engine)
+                    Self::create_text_sprites(lines, data.size, data.font, group, sprites.len(), engine)
                 }
             };
             sprites.extend(groups_sprites);
@@ -76,16 +77,20 @@ impl GroupUtils {
         }
     }
 
-    fn split_text(data: &SpriteTextData, group: &SpriteGroup, engine: &BalchugEngine) -> Vec<Vec<(String, f32)>> {
+    fn split_text(data: &SpriteTextData, group: &SpriteGroup, engine: &BalchugEngine) -> Vec<Vec<(SpriteTextData, f32)>> {
         let space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size: data.size, font: data.font }, 1.0).0;
-        let words = data.text.split(' ')
-            .filter(|word| !word.is_empty())
-            .map(|word| {
-                let word_data = SpriteTextData { text: word.to_string(), size: data.size, font: data.font };
-                let width = engine.measure_text(&word_data, 1.0).0;
-                (word.to_string(), width)
-            })
-            .collect::<Vec<_>>();
+        let spans = mark_str(&data.text);
+        let mut words = Vec::new();
+        for (font, span) in spans {
+            let span_words = span.split(' ')
+                .filter(|word| !word.is_empty())
+                .map(|word| {
+                    let word_data = SpriteTextData { text: word.to_string(), size: data.size, font };
+                    let width = engine.measure_text(&word_data, 1.0).0;
+                    (word_data, width)
+                });
+            words.extend(span_words);
+        }
         let mut lines = Vec::new();
         let mut line = Vec::new();
         let mut line_width = 0.0;
@@ -106,20 +111,21 @@ impl GroupUtils {
         }
         lines
     }
-    
+
     fn create_text_sprites(
-        lines: Vec<Vec<(String, f32)>>,
-        data: &SpriteTextData,
+        lines: Vec<Vec<(SpriteTextData, f32)>>,
+        size: u8,
+        font: usize,
         group: &SpriteGroup,
         start_id: usize,
         engine: &BalchugEngine,
     ) -> Vec<SpriteAnimation> {
         let mut sprite_id = start_id;
-        let font_space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size: data.size, font: data.font }, 1.0).0;
+        let font_space_width = engine.measure_text(&SpriteTextData { text: " ".to_string(), size, font }, 1.0).0;
         let last_line = lines.len() - 1;
         lines.into_iter().enumerate()
             .flat_map(|(line_index, words)| {
-                let dy = line_index as f32 * data.size as f32 * TEXT_SIZE_FACTOR;
+                let dy = line_index as f32 * size as f32 * TEXT_SIZE_FACTOR;
                 let sum_words_width = words.iter().map(|(_, width)| width).sum::<f32>();
                 let space_width = if words.len() > 1 && line_index < last_line {
                     (group.max_width - sum_words_width) / (words.len() - 1) as f32
@@ -131,7 +137,7 @@ impl GroupUtils {
                     .map(|(word, word_width)| {
                         let sprite = SpriteAnimation {
                             sprite_id,
-                            data: SpriteData::Text(SpriteTextData { text: word, size: data.size, font: data.font }),
+                            data: SpriteData::Text(word),
                             states: Self::translate_states(&group.states, dx, dy),
                             smooth_factor: group.smooth_factor,
                         };
