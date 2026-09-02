@@ -15,7 +15,7 @@ pub struct ResourcesController {
     thumbs: Signal<Vec<String>>,
     engine: Rc<RefCell<Option<BalchugEngine>>>,
     project_state: ProjectState,
-    adding_image_id: Signal<Option<usize>>,
+    adding_image_id: Signal<bool>,
     text_edit_open: Signal<bool>,
     edit_group_signal: Signal<Option<usize>>,
     groups_update_signal: Rc<Cell<bool>>,
@@ -39,7 +39,7 @@ impl ResourcesController {
             engine,
             project_state,
             thumbs: Default::default(),
-            adding_image_id: Signal::new(None),
+            adding_image_id: Signal::new(false),
             text_edit_open: Signal::new(false),
             edit_group_signal: Signal::new(None),
             groups_update_signal,
@@ -50,7 +50,7 @@ impl ResourcesController {
         self.thumbs.read().clone()
     }
     
-    pub fn get_image_adding_signal(&self) -> Signal<Option<usize>> {
+    pub fn get_image_adding_signal(&self) -> Signal<bool> {
         self.adding_image_id
     }
 
@@ -63,7 +63,7 @@ impl ResourcesController {
     }
     
     pub fn close_popups(&mut self) {
-        self.adding_image_id.set(None);
+        self.adding_image_id.set(false);
         self.text_edit_open.set(false);
         self.edit_group_signal.set(None);
     }

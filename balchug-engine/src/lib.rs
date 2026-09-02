@@ -533,16 +533,28 @@ fn run_build_fonts(ctx: &AppContext, renderer: &GlRenderer) {
     }
 
     let listener = ctx.font_listener.take();
+    if listener.is_none() {
+        let mut scenario_has_new_letters = false;
+        for i in 0..bytes.len() {
+            let letters = scenario_letters(&ctx.scenario.borrow(), i);
+            let known_letters = ctx.fonts.borrow()[i].glyphs.keys().cloned().collect::<HashSet<_>>();
+            if letters.chars().any(|c| c != ' ' && !known_letters.contains(&c)) {
+                scenario_has_new_letters = true;
+                break;
+            }
+        }
+        if !scenario_has_new_letters {
+            return;
+        }
+    }
+
     let mut font_tasks = Vec::new();
     for (font_index, font_bytes) in bytes.iter().enumerate() {
         let letters = scenario_letters(&ctx.scenario.borrow(), font_index);
-        let known_letters = ctx.fonts.borrow()[font_index].glyphs.keys().cloned().collect::<HashSet<_>>();
-        if listener.is_some() || letters.chars().any(|c| c != ' ' && !known_letters.contains(&c)) {
-            let size = scenario_text_size(&ctx.scenario.borrow(), ctx.canvas_width.get());
-            info!("Font {font_index} size: {size}");
-            let task = BuildFontTask { font_index, font_bytes, letters, size };
-            font_tasks.push(task);
-        }
+        let size = scenario_text_size(&ctx.scenario.borrow(), ctx.canvas_width.get());
+        info!("Font {font_index} size: {size}");
+        let task = BuildFontTask { font_index, font_bytes, letters, size };
+        font_tasks.push(task);
     }
     
     if let Some(res) = build_fonts(&font_tasks) {

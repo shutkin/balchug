@@ -5,6 +5,8 @@ use dioxus::html::geometry::WheelDelta;
 use dioxus::prelude::*;
 use dioxus::web::WebEventExt;
 use std::ops::{AddAssign, MulAssign};
+use crate::components::group_edit::GroupPropsEdit;
+use crate::states::project_state::SpriteGroup;
 
 const LAYER_WIDTH: usize = 24;
 
@@ -81,7 +83,7 @@ pub fn TimeLine(controller: SpriteEditController, resources_controller: Resource
                     cursor_type.set("default".to_string());
                 }
             },
-            onmousedown: move |event| {
+            onmouseup: move |event| {
                 let point = find_point(event.as_ref(), &points_store.read());
                 c1.set_timeline_point(point);
             },
@@ -118,6 +120,74 @@ pub fn TimeLine(controller: SpriteEditController, resources_controller: Resource
                 }
             }
         }
+    }
+}
+
+#[component]
+pub fn AddTextButton(controller: ResourcesController) -> Element {
+    let c0 = controller.clone();
+
+    rsx! {
+        section {
+            id: "text_section",
+            class: "panel-card",
+            button {
+                id: "add_text_line",
+                class: "btn btn-secondary",
+                onclick: move |_| {
+                    c0.get_text_adding_open().set(true);
+                },
+                "Add Text"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn AddImageButton(controller: ResourcesController) -> Element {
+    let c0 = controller.clone();
+
+    rsx! {
+        section {
+            id: "text_section",
+            class: "panel-card",
+            button {
+                id: "add_text_line",
+                class: "btn btn-secondary",
+                onclick: move |_| {
+                    c0.get_image_adding_signal().set(true);
+                },
+                "Add Image"
+            }
+        }
+    }
+}
+
+#[component]
+pub fn AddImageDialog(mut controller: ResourcesController) -> Element {
+    rsx! {
+        if *controller.get_image_adding_signal().read() {
+            GroupPropsEdit {
+                group: SpriteGroup::new_image(0),
+                group_id: None,
+                controller,
+            }
+        }
+    }
+}
+
+#[component]
+pub fn AddTextDialog(mut controller: ResourcesController) -> Element {
+    if *controller.get_text_adding_open().read() {
+        rsx! {
+            GroupPropsEdit {
+                group: SpriteGroup::new_text(),
+                group_id: None,
+                controller,
+            }
+        }
+    } else {
+        rsx! {}
     }
 }
 

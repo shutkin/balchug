@@ -1,6 +1,4 @@
-use crate::components::group_edit::GroupPropsEdit;
 use crate::controllers::resources::ResourcesController;
-use crate::states::project_state::SpriteGroup;
 use dioxus::prelude::*;
 
 #[component]
@@ -86,60 +84,6 @@ fn ImageAsset(controller: ResourcesController, id: usize, url: String) -> Elemen
             img {
                 class: "asset-thumb",
                 src: url,
-            }
-            button {
-                id: format!("image_{id}_put"),
-                class: "btn btn-secondary",
-                onclick: move |_| {
-                    controller.get_image_adding_signal().set(Some(id));
-                },
-                "Put"
-            }
-        }
-    }
-}
-
-#[component]
-pub fn AddImageDialog(mut controller: ResourcesController) -> Element {
-    rsx! {
-        if let Some(image_id) = *controller.get_image_adding_signal().read() {
-            GroupPropsEdit {
-                group: SpriteGroup::new_image(image_id),
-                group_id: None,
-                controller,
-            }
-        }
-    }
-}
-
-#[component]
-pub fn AddTextDialog(mut controller: ResourcesController) -> Element {
-    rsx! {
-        if *controller.get_text_adding_open().read() {
-            GroupPropsEdit {
-                group: SpriteGroup::new_text(),
-                group_id: None,
-                controller,
-            }
-        }
-    }
-}
-
-#[component]
-pub fn TextLine(controller: ResourcesController) -> Element {
-    let c0 = controller.clone();
-
-    rsx! {
-        section {
-            id: "text_section",
-            class: "panel-card",
-            button {
-                id: "add_text_line",
-                class: "btn btn-secondary",
-                onclick: move |_| {
-                    c0.get_text_adding_open().set(true);
-                },
-                "Add Text Paragraph"
             }
         }
     }

@@ -31,8 +31,16 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
     } else {
         (String::new(), 15)
     };
-    let mut text = use_signal(move || text);
-    let mut size = use_signal(move || size);
+    let image_id = if let SpriteData::Image(data) = &group.data {
+        data.atlas_item_id
+    } else {
+        0
+    };
+    let text = use_signal(move || text);
+    let size = use_signal(move || size);
+    let image_id = use_signal(move || image_id);
+    let c2 = controller.clone();
+    let thumbs = use_signal(move || c2.get_thumbs());
     let mut parallax = use_signal(move || group.parallax_factor);
     let mut smoothness = use_signal(move || group.smooth_factor);
 
@@ -49,7 +57,15 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
                     onsubmit: {
                         let mut group = group.clone();
                         move |e| {
-                            parse_values(e.values(), &mut group);
+                            group.title = title.read().clone();
+                            if let SpriteData::Text(data) = &mut group.data {
+                                data.text = text.read().clone();
+                                data.size = *size.read();
+                            } else if let SpriteData::Image(data) = &mut group.data {
+                                data.atlas_item_id = *image_id.read();
+                            }
+                            group.parallax_factor = *parallax.read();
+                            group.smooth_factor = *smoothness.read();
                             if let Some(group_id) = group_id {
                                 c0.update_group(group_id, &group);
                             } else {
@@ -76,33 +92,12 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
                             oninput: move |e| {title.set(e.value());}
                         }
                     }
-                    if let SpriteData::Text(_) = group.data.clone() {
-                        label {
-                            "Text",
-                            textarea {
-                                id: "sprite_dialog_title",
-                                name: "text",
-                                rows: 4,
-                                value: "{text.read()}",
-                                oninput: move |e| {text.set(e.value());}
-                            }
-                        }
-                        label {
-                            "Size"
-                            select {
-                                id: "text_size_select",
-                                name: "size",
-                                onchange: move |e: Event<FormData>| {
-                                    let v = e.value().parse::<u8>().unwrap_or(15);
-                                    size.set(v);
-                                },
-                                for i in 15_u8..=30_u8 {
-                                    option {
-                                        selected: i == *size.read(),
-                                        "{i}"
-                                    }
-                                }
-                            }
+                    match group.data.clone() {
+                        SpriteData::Text(_) => rsx! {
+                            GroupTextEdit {text, size}
+                        },
+                        SpriteData::Image(_) => rsx! {
+                            GroupImageEdit {image_id, thumbs}
                         }
                     }
                     label {
@@ -164,6 +159,63 @@ pub fn GroupPropsEdit(group: SpriteGroup, group_id: Option<usize>, controller: R
                                 "Remove"
                             }
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn GroupImageEdit(image_id: Signal<usize>, thumbs: Signal<Vec<String>>) -> Element {
+    rsx! {
+        div {
+            id: "group_dialog_images",
+            class: "asset-items-row",
+            for (id, thumb) in thumbs.read().iter().enumerate() {
+                div {
+                    id: "image_option_{id}",
+                    class: if id == *image_id.read() {"asset-item asset-item-selected"} else {"asset-item"},
+                    style: "cursor: pointer;",
+                    onclick: move |_| {
+                        image_id.set(id);
+                    },
+                    img {
+                        class: "asset-thumb",
+                        src: thumb
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[component]
+fn GroupTextEdit(text: Signal<String>, size: Signal<u8>) -> Element {
+    rsx! {
+        label {
+            "Text",
+            textarea {
+                id: "sprite_dialog_title",
+                name: "text",
+                rows: 4,
+                value: "{text.read()}",
+                oninput: move |e| {text.set(e.value());}
+            }
+        }
+        label {
+            "Size"
+            select {
+                id: "text_size_select",
+                name: "size",
+                onchange: move |e: Event<FormData>| {
+                    let v = e.value().parse::<u8>().unwrap_or(15);
+                    size.set(v);
+                },
+                for i in 15_u8..=30_u8 {
+                    option {
+                        selected: i == *size.read(),
+                        "{i}"
                     }
                 }
             }

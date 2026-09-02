@@ -388,6 +388,8 @@ input[type="color"] {
     display: flex;
     flex-direction: row;
     gap: 8px;
+    overflow-x: auto;
+    margin-bottom: 6px;
 }
 
 .asset-item {
@@ -400,6 +402,9 @@ input[type="color"] {
     padding: 6px;
     border-radius: 4px;
     width: 156px;
+}
+.asset-item-selected {
+    border: 3px solid var(--accent-purple);
 }
 
 .asset-thumb {
@@ -474,13 +479,15 @@ input[type="color"] {
 }
 
 /* Custom Scrollbar Polish */
-.timeline-container::-webkit-scrollbar {
-    width: 4px;
+.timeline-container::-webkit-scrollbar, .asset-items-row::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
 }
-.timeline-container::-webkit-scrollbar-track {
-    background: var(--bg-dark);
+.timeline-container::-webkit-scrollbar-track, .asset-items-row::-webkit-scrollbar-track {
+    background: var(--bg-surface);
 }
-.timeline-container::-webkit-scrollbar-thumb {
+.timeline-container::-webkit-scrollbar-thumb, .asset-items-row::-webkit-scrollbar-thumb {
     background: var(--border-color);
-    border-radius: 2px;
+    border: 1px solid var(--text-muted);
+    border-radius: 4px;
 }

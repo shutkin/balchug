@@ -33,7 +33,7 @@ pub fn mark_str(txt: &str) -> Vec<(usize, &str)> {
         }
         prev_index = i;
     }
-    if prev_index > span_start_index {
+    if prev_index > span_start_index && next_span_start_cnt.is_none() {
         let code = if is_bold {1} else {0};
         spans.push((code, &txt[span_start_index..txt.len()]));
     }
@@ -57,7 +57,7 @@ mod tst {
 
     #[test]
     fn test_whole_bold() {
-        let txt = "**Only bold";
+        let txt = "**Only bold**";
         let spans = mark_str(txt);
         println!("{:?}", spans);
         assert_eq!(spans.len(), 1);

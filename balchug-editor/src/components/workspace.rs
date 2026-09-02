@@ -1,9 +1,9 @@
 use crate::components::group_edit::GroupEditDialog;
 use crate::components::overlay::PreviewOverlay;
 use crate::components::project::ProjectControl;
-use crate::components::resources::{AddImageDialog, AddTextDialog, ImagesBank, TextLine};
+use crate::components::resources::ImagesBank;
 use crate::components::state_editor::StateEditor;
-use crate::components::timeline::TimeLine;
+use crate::components::timeline::{AddImageButton, AddImageDialog, AddTextButton, AddTextDialog, TimeLine};
 use crate::controllers::project_controller::ProjectController;
 use crate::controllers::resources::ResourcesController;
 use crate::controllers::sprite_editor::SpriteEditController;
@@ -151,9 +151,6 @@ fn ResourcesPanel(controller: ResourcesController) -> Element {
             id: "sidebar_container_timeline",
             class: "panel-box",
             ImagesBank {controller: controller.clone()}
-            TextLine {controller: controller.clone()}
-            AddImageDialog {controller: controller.clone()}
-            AddTextDialog {controller: controller.clone()}
         }
     }
 }
@@ -165,11 +162,19 @@ fn TimelinePanel(controller: SpriteEditController, resources_controller: Resourc
             id: "sidebar_container_timeline",
             class: "panel-box",
             div {
+                id: "timeline-controls",
+                class: "form-row",
+                AddTextButton {controller: resources_controller.clone()}
+                AddImageButton {controller: resources_controller.clone()}
+            }
+            div {
                 id: "sidebar_timeline_container",
                 class: "timeline-container",
                 TimeLine {controller: controller.clone(), resources_controller: resources_controller.clone()}
             }
             StateEditor {controller: controller.clone()}
+            AddImageDialog {controller: resources_controller.clone()}
+            AddTextDialog {controller: resources_controller.clone()}
             GroupEditDialog {controller: resources_controller.clone()}
         }
     }
